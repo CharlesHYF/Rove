@@ -1,0 +1,8 @@
+# config 模块测试配置文件 -- 覆盖 YAML 覆盖默认值的路径
+fetch:
+  max_body_bytes: 1048576
+  timeout: 10s
+  user_agent: "rove-dev/0.1"
+chunk:
+  max_tokens: 400
+  overlap: 50
