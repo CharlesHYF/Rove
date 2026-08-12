@@ -9,8 +9,8 @@ Crawl. Browse. Index. Retrieve. Rank. Evidence.
 ## 里程碑状态
 
 - [x] M1 骨架 + Fetch + Content
-- [x] M2 ES 索引 + BM25（当前）
-- [ ] M3 Vector + Hybrid + Evidence
+- [x] M2 ES 索引 + BM25
+- [x] M3 Vector + Hybrid + Evidence（当前）
 - [ ] M4 Crawler
 - [ ] M5 Browser Escalation
 - [ ] M6 TUI + 收尾验收

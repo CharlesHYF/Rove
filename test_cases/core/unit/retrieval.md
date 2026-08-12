@@ -28,3 +28,5 @@
 | -------- | ------ | -------- | -------- | -------- | -------- | -------- | -------- | ---- |
 | TC-RET-006 | P0 | BM25 召回 | ES 已启动 | 索引 2 文档后搜 browser agent | 仅命中 d1，分数/特征/TraceID 正常 | 与预期一致 | Pass | TestSearchBM25 |
 | TC-RET-007 | P0 | 域名过滤 | ES 已启动 | 搜 shared + domain=a.com | 仅命中 da | 与预期一致 | Pass | TestSearchDomainFilter |
+| TC-RET-008 | P0 | Hybrid 混合检索 | ES 已启动 | 嵌入向量后搜 "agent web infrastructure" | 语义匹配文档居首，Scores 含 vector/fusion/rank，Timings 含 vector_retrieve | 与预期一致 | Pass | TestSearchHybrid |
+| TC-RET-009 | P0 | RRF 融合纯函数 | - | 双腿合成命中 | fusion=双腿贡献和、排序正确 | 与预期一致 | Pass | TestRRFMerge |

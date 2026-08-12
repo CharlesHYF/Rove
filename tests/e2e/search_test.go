@@ -18,6 +18,7 @@ import (
 
 	"rove/pkg/content"
 	"rove/pkg/elastic"
+	"rove/pkg/evidence"
 	"rove/pkg/fetch"
 	"rove/pkg/index"
 	"rove/pkg/retrieval"
@@ -48,7 +49,7 @@ func TestFetchIndexSearch(t *testing.T) {
 	}
 	require.NoError(t, client.EnsureIndexes(context.Background(), 256))
 
-	// 3. fetch -> pipeline -> index（全链路）
+	// 3. fetch -> pipeline -> index（全链路，嵌入向量）
 	fetcher := fetch.NewHTTP(fetch.Options{AllowPrivate: true})
 	raw, err := fetcher.Fetch(context.Background(), &fetch.Request{URL: ts.URL, Mode: fetch.ModeHTTP})
 	require.NoError(t, err)
@@ -59,15 +60,30 @@ func TestFetchIndexSearch(t *testing.T) {
 	require.False(t, dedup.IsDuplicate)
 	require.NotEmpty(t, doc.Chunks)
 
-	indexer := index.New(client)
+	indexer := index.New(client, retrieval.NewPseudoEmbedder())
 	require.NoError(t, indexer.Index(context.Background(), doc))
 
-	// 4. search（验收 A3：结果来自自有 ES Index）
-	result, err := retrieval.New(client).Search(context.Background(), &retrieval.Query{Text: "browser agents", TopK: 5})
+	// 4. Hybrid 检索（无 API Key，验收 A4/A7）
+	retriever := retrieval.New(client, retrieval.NewPseudoEmbedder())
+	result, err := retriever.Search(context.Background(), &retrieval.Query{Text: "browser agents", TopK: 5})
 	require.NoError(t, err)
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "Rove E2E Doc", result.Hits[0].Document.Title)
 	require.Contains(t, result.Hits[0].Chunk.Content, "open web infrastructure")
+	require.Contains(t, result.Hits[0].Scores, "vector", "vector leg must contribute (A4)")
+	require.Contains(t, result.Hits[0].Scores, "fusion")
+	require.Contains(t, result.Timings, "vector_retrieve")
+
+	// 5. Evidence（验收 A5：结果可作为 Evidence 使用）
+	items, err := evidence.New().Build(context.Background(), result)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	first := items[0]
+	require.Equal(t, "Rove E2E Doc", first.Title)
+	require.Contains(t, first.Text, "open web infrastructure")
+	require.NotEmpty(t, first.URL)
+	require.InDelta(t, 1.0, first.Score, 0.0001, "single hit normalized to 1.0")
+	require.Equal(t, "web", first.Source.Type)
 }
 
 // randSuffix 生成测试索引唯一后缀。
