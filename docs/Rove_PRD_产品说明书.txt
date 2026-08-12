@@ -1,0 +1,440 @@
+ROVE
+PRD 产品说明书
+Rove — Product Requirements Document
+Open web infrastructure for AI agents.
+Crawl. Browse. Index. Retrieve. Rank. Evidence.
+文档信息
+文档版本
+1.0
+产品名称
+Rove
+产品定位
+Open Web Infrastructure for AI Agents
+核心语言
+Go
+主要界面
+CLI + TUI + Machine-readable API + MCP
+核心检索
+Elasticsearch：BM25 + Vector + Metadata + Hybrid
+状态
+目标产品定义；按 P0/P1/P2 仅表达实施优先级，不改变架构边界
+目录
+01 背景与问题
+02 产品目标与非目标
+03 目标用户与核心场景
+04 产品原则
+05 范围与功能地图
+06 核心功能需求
+07 TUI / CLI / MCP
+08 数据与检索模型
+09 非功能需求
+10 安全与合规
+11 可观察性
+12 优先级与验收标准
+13 成功指标与风险
+01 背景与问题
+现有 Agent Web 能力高度碎片化：Search、Crawl、Browser、Extract、Index、Vector Retrieval、Rerank 与 Citation 往往由不同组件承担，缺少统一 Runtime、Document Model、错误语义和可观察性。Rove 通过自研完整链路，把 Web 转化为 Agent 可检索、可引用、可调试的 Evidence。
+产品问题定义
+如何让任意 Agent 在不依赖外部 Search SaaS 的前提下，可靠地发现 Web 内容、访问动态页面、建立自己的索引，并以结构化 Evidence 的形式获得高质量检索结果？
+02 产品目标与非目标
+产品目标
+提供从 Crawl → Fetch → Parse → Index → Retrieve → Rank → Evidence 的完整闭环。
+默认自托管，搜索结果来自 Rove 自己维护的 Elasticsearch Index。
+统一静态 Web 与动态 Web 的访问模型，采用 HTTP First、Browser Escalation。
+在没有任何 LLM API Key 的情况下仍可完成抓取、索引、BM25 检索、基础 Hybrid 流程与 Evidence 输出。
+为开发者提供优秀的 CLI/TUI Debug Experience，为 Agent 提供 JSON/JSONL/MCP。
+所有核心组件均可观测、可测试、可独立演进。
+非目标
+不建设 SaaS Dashboard、Billing、多租户和商业化账号体系。
+不做通用 Agent Framework、Chatbot 或 Deep Research 应用。
+不以第三方 Search Provider 作为产品成立前提。
+不在 Core 中强绑定某个 LLM、Embedding 或 Reranker 供应商。
+不要求 Kubernetes 才能运行。
+03 目标用户与核心场景
+用户
+主要需求
+Rove 价值
+Agent Framework Developer
+为 Agent 提供统一 Web Tool
+减少 Search/Browser/Crawl glue code
+Research Agent Developer
+可追溯检索与引用
+自有 Corpus + Evidence Pipeline
+Coding Agent Developer
+文档、代码站与动态页面检索
+Search 与 Browser 同一 Runtime
+AI Infra Engineer
+自托管、可观测、可扩展
+Go Runtime + ES + 标准接口
+Enterprise Developer
+Public Web + Private Corpus
+数据不必发往外部 Search SaaS
+04 产品原则
+原则
+要求
+Open
+核心能力可以本地/自托管运行；Apache-2.0。
+Self-owned Retrieval
+Crawler、Index、Retriever、Ranker 属于 Rove Core。
+HTTP First
+优先轻量 HTTP；只在必要时启用 Chromium。
+Deterministic First
+无 LLM 依赖也必须形成完整基本闭环。
+Agent-first
+输出 Evidence，而不是面向人的 SERP。
+Human-debuggable
+每个重要决策和耗时都可在 CLI/TUI/Trace 中查看。
+05 范围与功能地图
+Rove
+├─ Acquisition
+│ ├─ Crawler
+│ ├─ URL Frontier
+│ ├─ Scheduler
+│ └─ Robots / URL Policy
+├─ Retrieval Runtime
+│ ├─ HTTP Fetcher
+│ └─ Browser Runtime
+├─ Content Pipeline
+│ ├─ Parser / Extractor
+│ ├─ Normalize / Canonicalize
+│ ├─ Dedup
+│ └─ Chunk
+├─ Storage & Index
+│ ├─ Elasticsearch
+│ ├─ Object Store
+│ └─ SQLite Runtime State
+├─ Retrieval & Ranking
+│ ├─ BM25 / Vector / Hybrid
+│ ├─ Fusion / Rank / Rerank
+│ └─ Evidence
+└─ Interface
+ ├─ Go API
+ ├─ CLI
+ ├─ TUI
+ └─ MCP
+06 核心功能需求
+ID
+模块
+需求
+优先级
+FR-ACQ-001
+Crawler
+给定 Seed URL 后发现站内可抓取 URL，并进入 Frontier。
+P0
+FR-ACQ-002
+URL Frontier
+支持 URL 去重、优先级、深度、来源、重试和 next_fetch_at。
+P0
+FR-ACQ-003
+Scheduler
+依据 host rate、robots、priority、freshness 与 retry 调度。
+P0
+FR-FET-001
+HTTP Fetch
+支持 redirect、timeout、retry、compression、charset、ETag、Last-Modified、max body size。
+P0
+FR-FET-002
+Browser Escalation
+HTTP 正文不足、CSR/SPA 或必须交互时升级 Chromium/CDP。
+P0
+FR-BRW-001
+Browser Session
+管理 Chromium、Context、Page、Cookie、Storage 生命周期。
+P0
+FR-BRW-002
+Page State
+输出 Agent-friendly interactive elements，并使用稳定 element id。
+P0
+FR-CNT-001
+Parser
+支持 HTML、Text、JSON、Markdown；PDF 为独立 Parser。
+P0
+FR-CNT-002
+Extractor
+提取正文、标题、作者、时间、描述、链接与结构化 metadata。
+P0
+FR-CNT-003
+Canonicalize & Dedup
+支持 canonical URL、content hash、near-duplicate 策略。
+P0
+FR-IDX-001
+Elasticsearch Index
+维护 Document Index 与 Chunk Index，使用 Alias 管理 schema 演进。
+P0
+FR-IDX-002
+Bulk Index
+索引流程必须支持批量写入和失败重试。
+P0
+FR-RET-001
+BM25 Retrieval
+支持 title/content/chunk 关键词召回和 metadata filter。
+P0
+FR-RET-002
+Vector Retrieval
+支持 dense vector 语义召回；Embedder 为可替换接口。
+P0
+FR-RET-003
+Hybrid Retrieval
+BM25 + Vector 候选经 Fusion 合并，默认支持 RRF。
+P0
+FR-RNK-001
+Ranking
+综合 relevance、freshness、source quality、language、duplicate penalty。
+P0
+FR-EVD-001
+Evidence
+输出 relevant chunk、URL、source、score、position/metadata。
+P0
+FR-MAP-001
+Map
+仅做 URL Discovery，不强制完整内容抓取。
+P1
+FR-RNK-002
+Reranker
+支持 heuristic / cross-encoder / LLM / custom。
+P1
+FR-QRY-001
+Query Router
+可按 Web/Docs/Code/Academic 等逻辑 Index 路由。
+P1
+FR-MCP-001
+MCP
+原生暴露 search/fetch/browse/crawl/extract 工具。
+P1
+07 TUI / CLI / MCP
+CLI
+rove search "..." [--json]
+rove fetch <url> [--mode auto|http|browser]
+rove browse <url>
+rove crawl <seed>
+rove map <url>
+rove extract <url>
+rove index status|stats|rebuild
+rove mcp
+TUI
+直接运行 rove 进入 TUI。TUI 的定位不是营销界面，而是 Rove Runtime Debugger。必须提供 Search、Crawl、Browse、Index、Runtime 五个主要视图。
+视图
+核心信息
+Search
+结果、Evidence、lexical/vector/fusion/rank 分数、耗时
+Crawl
+Frontier、active workers、visited、failed、host rate
+Browse
+Page State、interactive elements、actions、navigation
+Index
+documents、chunks、index size、alias、health、indexing throughput
+Runtime
+HTTP、Browser、ES、Cache、SQLite、Trace 状态
+MCP
+MCP 对外暴露稳定的 Agent Tool，而不是内部组件细节。至少包括 rove_search、rove_fetch、rove_browse、rove_crawl、rove_extract。
+08 数据与检索模型
+Document Model
+Document
+├─ id
+├─ url / canonical_url
+├─ title / description
+├─ content / markdown
+├─ language
+├─ published_at / updated_at / fetched_at
+├─ source { domain, type }
+├─ metadata
+├─ content_hash
+└─ chunks[]
+Elasticsearch Index
+Alias
+物理 Index
+职责
+rove-documents
+rove-documents-vNNN
+页面级 Document、Metadata、状态
+rove-chunks
+rove-chunks-vNNN
+Chunk、Embedding、搜索字段、Evidence 单元
+Search 默认以 Chunk 为主要召回单元，随后按 document_id 聚合回页面级结果。Schema 升级通过 new index → reindex → alias switch 完成。
+09 非功能需求
+ID
+类别
+要求
+NFR-001
+可用性
+核心组件异常必须返回 machine-readable error，不允许 silent failure。
+NFR-002
+性能
+本地常规环境 Search 目标 P50 < 200ms、P95 < 500ms，不计外部 embedding API。
+NFR-003
+并发
+Crawler 与 HTTP Fetcher 使用有界并发；Browser Session 必须复用。
+NFR-004
+可扩展
+组件通过接口隔离；Embedder、Reranker、Parser 可替换。
+NFR-005
+可观测
+所有核心操作具备日志、metrics、trace_id 与阶段耗时。
+NFR-006
+可移植
+Linux/macOS 优先；CLI Core 以单 Go Binary 分发。
+NFR-007
+数据一致性
+Document/Chunk 写入需幂等；失败批次可安全重试。
+NFR-008
+资源保护
+必须限制 body size、crawl pages、host concurrency、browser sessions。
+10 安全与合规
+默认阻止 file://、localhost、127.0.0.0/8、RFC1918 私网、云 Metadata Endpoint，显式 allow-private 才可放开。
+限制 Redirect、Response Size、Decompression、Download、Crawl Depth 与 Max Pages。
+默认尊重 robots.txt，并支持 per-host concurrency 与 crawl delay。
+Browser Runtime 对下载、文件系统访问与执行权限实施最小权限策略。
+敏感配置不得进入普通日志；Trace 中需要脱敏 URL 参数和 Header。
+11 可观察性
+search 124ms
+├─ query_processor 2ms
+├─ lexical_retrieve 18ms
+├─ vector_retrieve 31ms
+├─ fusion 3ms
+├─ rank 4ms
+└─ evidence 21ms
+
+fetch example.com
+├─ HTTP 403
+├─ browser escalation
+├─ render 1.4s
+├─ extracted 8.2KB
+└─ indexed 14 chunks
+OpenTelemetry 为标准 Trace/Metric 输出方式；TUI 读取同一 Runtime Telemetry 展示状态。
+12 优先级与验收标准
+P0/P1/P2 仅用于施工优先级，不代表不同产品架构。Rove 从一开始即按完整 Acquisition → Runtime → Content → Index → Retrieval → Evidence 架构设计。
+级别
+定义
+代表能力
+P0
+Rove 核心闭环不可缺少
+Crawler、HTTP/Browser、Content、ES、BM25/Vector/Hybrid、Ranking、Evidence、CLI/TUI
+P1
+完整架构中的高级能力
+Map、Query Router、Reranker、Vertical Index、MCP、Index migration tooling
+P2
+增强生态与规模化能力
+更多 Parser、分布式 Scheduler、插件协议、更多部署拓扑
+核心验收
+给定 Seed URL，Rove 能 discover → fetch → parse → extract → deduplicate → index。
+动态网页在 HTTP 内容不足时能够自动 Browser Escalation，并把结果进入同一 Document Pipeline。
+rove search 的结果来自 Rove 自己的 Elasticsearch Index，不要求 Exa/Tavily 等外部 Search API。
+查询支持 BM25 与 Vector 候选，并可经 Hybrid Fusion 输出统一结果。
+结果至少包含 URL、source、relevant chunk、score，可直接被 Agent 作为 Evidence 使用。
+开发者可以从 TUI 观察 Crawler、Browser、Index、Search Score、Evidence 和关键耗时。
+13 成功指标与风险
+成功指标
+维度
+核心指标
+Developer Adoption
+被 Agent 项目作为 Web Infrastructure Dependency 使用
+Retrieval Quality
+Top-K relevance、Evidence usefulness、freshness、source diversity
+Reliability
+crawl success、fetch success、indexing success、search availability
+Debuggability
+关键失败可定位到 acquisition/fetch/content/index/retrieval/ranking 任一阶段
+Self-host Value
+核心链路在无第三方 Search SaaS 情况下可完整运行
+主要风险
+风险
+影响
+应对
+全 Web 规模过大
+资源和抓取范围不可控
+以可配置 Corpus/Seed/Vertical Index 为核心，严格 URL Policy
+动态网页成本高
+CPU/内存/延迟增加
+HTTP First + Browser Pool + 有界 Session
+检索质量不足
+Agent Evidence 价值下降
+BM25/Vector Hybrid、可观测 Ranking、离线 benchmark
+ES 运维变重
+本地安装门槛上升
+官方 Docker Compose、health check、alias migration tooling
+功能膨胀为 Agent Framework
+产品边界模糊
+Infra 原子接口；Research/Workflow 保持上层
+
+===== 表格内容 =====
+文档版本 | 1.0
+产品名称 | Rove
+产品定位 | Open Web Infrastructure for AI Agents
+核心语言 | Go
+主要界面 | CLI + TUI + Machine-readable API + MCP
+核心检索 | Elasticsearch：BM25 + Vector + Metadata + Hybrid
+状态 | 目标产品定义；按 P0/P1/P2 仅表达实施优先级，不改变架构边界
+产品问题定义 如何让任意 Agent 在不依赖外部 Search SaaS 的前提下，可靠地发现 Web 内容、访问动态页面、建立自己的索引，并以结构化 Evidence 的形式获得高质量检索结果？
+用户 | 主要需求 | Rove 价值
+Agent Framework Developer | 为 Agent 提供统一 Web Tool | 减少 Search/Browser/Crawl glue code
+Research Agent Developer | 可追溯检索与引用 | 自有 Corpus + Evidence Pipeline
+Coding Agent Developer | 文档、代码站与动态页面检索 | Search 与 Browser 同一 Runtime
+AI Infra Engineer | 自托管、可观测、可扩展 | Go Runtime + ES + 标准接口
+Enterprise Developer | Public Web + Private Corpus | 数据不必发往外部 Search SaaS
+原则 | 要求
+Open | 核心能力可以本地/自托管运行；Apache-2.0。
+Self-owned Retrieval | Crawler、Index、Retriever、Ranker 属于 Rove Core。
+HTTP First | 优先轻量 HTTP；只在必要时启用 Chromium。
+Deterministic First | 无 LLM 依赖也必须形成完整基本闭环。
+Agent-first | 输出 Evidence，而不是面向人的 SERP。
+Human-debuggable | 每个重要决策和耗时都可在 CLI/TUI/Trace 中查看。
+Rove ├─ Acquisition │ ├─ Crawler │ ├─ URL Frontier │ ├─ Scheduler │ └─ Robots / URL Policy ├─ Retrieval Runtime │ ├─ HTTP Fetcher │ └─ Browser Runtime ├─ Content Pipeline │ ├─ Parser / Extractor │ ├─ Normalize / Canonicalize │ ├─ Dedup │ └─ Chunk ├─ Storage & Index │ ├─ Elasticsearch │ ├─ Object Store │ └─ SQLite Runtime State ├─ Retrieval & Ranking │ ├─ BM25 / Vector / Hybrid │ ├─ Fusion / Rank / Rerank │ └─ Evidence └─ Interface ├─ Go API ├─ CLI ├─ TUI └─ MCP
+ID | 模块 | 需求 | 优先级
+FR-ACQ-001 | Crawler | 给定 Seed URL 后发现站内可抓取 URL，并进入 Frontier。 | P0
+FR-ACQ-002 | URL Frontier | 支持 URL 去重、优先级、深度、来源、重试和 next_fetch_at。 | P0
+FR-ACQ-003 | Scheduler | 依据 host rate、robots、priority、freshness 与 retry 调度。 | P0
+FR-FET-001 | HTTP Fetch | 支持 redirect、timeout、retry、compression、charset、ETag、Last-Modified、max body size。 | P0
+FR-FET-002 | Browser Escalation | HTTP 正文不足、CSR/SPA 或必须交互时升级 Chromium/CDP。 | P0
+FR-BRW-001 | Browser Session | 管理 Chromium、Context、Page、Cookie、Storage 生命周期。 | P0
+FR-BRW-002 | Page State | 输出 Agent-friendly interactive elements，并使用稳定 element id。 | P0
+FR-CNT-001 | Parser | 支持 HTML、Text、JSON、Markdown；PDF 为独立 Parser。 | P0
+FR-CNT-002 | Extractor | 提取正文、标题、作者、时间、描述、链接与结构化 metadata。 | P0
+FR-CNT-003 | Canonicalize & Dedup | 支持 canonical URL、content hash、near-duplicate 策略。 | P0
+FR-IDX-001 | Elasticsearch Index | 维护 Document Index 与 Chunk Index，使用 Alias 管理 schema 演进。 | P0
+FR-IDX-002 | Bulk Index | 索引流程必须支持批量写入和失败重试。 | P0
+FR-RET-001 | BM25 Retrieval | 支持 title/content/chunk 关键词召回和 metadata filter。 | P0
+FR-RET-002 | Vector Retrieval | 支持 dense vector 语义召回；Embedder 为可替换接口。 | P0
+FR-RET-003 | Hybrid Retrieval | BM25 + Vector 候选经 Fusion 合并，默认支持 RRF。 | P0
+FR-RNK-001 | Ranking | 综合 relevance、freshness、source quality、language、duplicate penalty。 | P0
+FR-EVD-001 | Evidence | 输出 relevant chunk、URL、source、score、position/metadata。 | P0
+FR-MAP-001 | Map | 仅做 URL Discovery，不强制完整内容抓取。 | P1
+FR-RNK-002 | Reranker | 支持 heuristic / cross-encoder / LLM / custom。 | P1
+FR-QRY-001 | Query Router | 可按 Web/Docs/Code/Academic 等逻辑 Index 路由。 | P1
+FR-MCP-001 | MCP | 原生暴露 search/fetch/browse/crawl/extract 工具。 | P1
+rove search "..." [--json] rove fetch <url> [--mode auto|http|browser] rove browse <url> rove crawl <seed> rove map <url> rove extract <url> rove index status|stats|rebuild rove mcp
+视图 | 核心信息
+Search | 结果、Evidence、lexical/vector/fusion/rank 分数、耗时
+Crawl | Frontier、active workers、visited、failed、host rate
+Browse | Page State、interactive elements、actions、navigation
+Index | documents、chunks、index size、alias、health、indexing throughput
+Runtime | HTTP、Browser、ES、Cache、SQLite、Trace 状态
+Document ├─ id ├─ url / canonical_url ├─ title / description ├─ content / markdown ├─ language ├─ published_at / updated_at / fetched_at ├─ source { domain, type } ├─ metadata ├─ content_hash └─ chunks[]
+Alias | 物理 Index | 职责
+rove-documents | rove-documents-vNNN | 页面级 Document、Metadata、状态
+rove-chunks | rove-chunks-vNNN | Chunk、Embedding、搜索字段、Evidence 单元
+ID | 类别 | 要求
+NFR-001 | 可用性 | 核心组件异常必须返回 machine-readable error，不允许 silent failure。
+NFR-002 | 性能 | 本地常规环境 Search 目标 P50 < 200ms、P95 < 500ms，不计外部 embedding API。
+NFR-003 | 并发 | Crawler 与 HTTP Fetcher 使用有界并发；Browser Session 必须复用。
+NFR-004 | 可扩展 | 组件通过接口隔离；Embedder、Reranker、Parser 可替换。
+NFR-005 | 可观测 | 所有核心操作具备日志、metrics、trace_id 与阶段耗时。
+NFR-006 | 可移植 | Linux/macOS 优先；CLI Core 以单 Go Binary 分发。
+NFR-007 | 数据一致性 | Document/Chunk 写入需幂等；失败批次可安全重试。
+NFR-008 | 资源保护 | 必须限制 body size、crawl pages、host concurrency、browser sessions。
+search 124ms ├─ query_processor 2ms ├─ lexical_retrieve 18ms ├─ vector_retrieve 31ms ├─ fusion 3ms ├─ rank 4ms └─ evidence 21ms fetch example.com ├─ HTTP 403 ├─ browser escalation ├─ render 1.4s ├─ extracted 8.2KB └─ indexed 14 chunks
+级别 | 定义 | 代表能力
+P0 | Rove 核心闭环不可缺少 | Crawler、HTTP/Browser、Content、ES、BM25/Vector/Hybrid、Ranking、Evidence、CLI/TUI
+P1 | 完整架构中的高级能力 | Map、Query Router、Reranker、Vertical Index、MCP、Index migration tooling
+P2 | 增强生态与规模化能力 | 更多 Parser、分布式 Scheduler、插件协议、更多部署拓扑
+维度 | 核心指标
+Developer Adoption | 被 Agent 项目作为 Web Infrastructure Dependency 使用
+Retrieval Quality | Top-K relevance、Evidence usefulness、freshness、source diversity
+Reliability | crawl success、fetch success、indexing success、search availability
+Debuggability | 关键失败可定位到 acquisition/fetch/content/index/retrieval/ranking 任一阶段
+Self-host Value | 核心链路在无第三方 Search SaaS 情况下可完整运行
+风险 | 影响 | 应对
+全 Web 规模过大 | 资源和抓取范围不可控 | 以可配置 Corpus/Seed/Vertical Index 为核心，严格 URL Policy
+动态网页成本高 | CPU/内存/延迟增加 | HTTP First + Browser Pool + 有界 Session
+检索质量不足 | Agent Evidence 价值下降 | BM25/Vector Hybrid、可观测 Ranking、离线 benchmark
+ES 运维变重 | 本地安装门槛上升 | 官方 Docker Compose、health check、alias migration tooling
+功能膨胀为 Agent Framework | 产品边界模糊 | Infra 原子接口；Research/Workflow 保持上层

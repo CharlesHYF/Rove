@@ -1,0 +1,202 @@
+ROVE
+产品介绍册
+Rove — Open Web Infrastructure for AI Agents
+Open web infrastructure for AI agents.
+Crawl. Browse. Index. Retrieve. Rank. Evidence.
+文档信息
+产品名称
+Rove
+产品定位
+面向 AI Agent 的开放 Web 基础设施
+产品形态
+Open-source infra tool；本地 / 自托管优先
+核心技术栈
+Go · Elasticsearch · Chromium/CDP · TUI
+核心原则
+Self-owned Retrieval · HTTP First · Deterministic First · Agent-first
+目录
+01 为什么需要 Rove
+02 Rove 是什么
+03 核心能力
+04 产品优势
+05 完整工作链路
+06 典型使用场景
+07 开发者体验
+08 产品边界与长期价值
+01 为什么需要 Rove
+AI Agent 已经越来越擅长推理、规划与行动，但“访问 Web”仍然依赖大量碎片化基础设施。一个真正可用的 Agent 往往要同时拼接 Search API、Crawler、HTTP Fetcher、Browser Automation、HTML Extractor、Search Index、Vector Retrieval、Reranker、Citation、Cache 与 Observability。
+核心问题
+Agent 团队真正浪费的时间，不是某一个组件不会做，而是每个团队都在重复编写 fetch → extract → browser fallback → chunk → index → retrieve → rerank 的 glue code。
+Agent
+ ├─ Search API
+ ├─ Crawler
+ ├─ Playwright / Browser Automation
+ ├─ HTML Extractor
+ ├─ Elasticsearch / Vector DB
+ ├─ Embedding / Reranker
+ └─ 大量自研 Glue Code
+Rove 的目标，是把这些能力收敛成一个统一、开放、可观察、可自托管的 Agent Web Runtime。
+02 Rove 是什么
+一句话定义
+Rove is the open web infrastructure for AI agents.
+Rove 不是搜索 SaaS，也不是 Browser Agent。它是一套从 Web 获取、浏览、解析、索引、检索、排序到 Evidence 输出的完整基础设施。Rove 自己拥有数据获取和搜索链路，而不是依赖第三方 Search API 才能成立。
+Web
+ ↓
+Acquire
+ ↓
+Understand
+ ↓
+Index
+ ↓
+Retrieve
+ ↓
+Rank
+ ↓
+Evidence
+ ↓
+Agent
+03 核心能力
+Crawl
+持续发现与抓取 Web
+Browse
+动态页面与交互访问
+Index
+BM25 + Vector + Metadata
+Retrieve
+Hybrid Retrieval
+Evidence
+返回可引用证据
+能力
+Rove 提供什么
+对 Agent 的价值
+Acquisition
+Crawler、URL Frontier、Scheduler、robots policy
+持续建立自己的 Web Corpus
+Retrieval Runtime
+HTTP Fetcher + Browser Escalation
+静态与动态网页使用同一套访问模型
+Content Pipeline
+Parse、Extract、Normalize、Dedup、Chunk
+把复杂网页统一成标准 Document
+Elasticsearch
+Document / Chunk / BM25 / Vector / Filter
+拥有自己的索引与检索能力
+Ranking
+Fusion、Rank、Rerank
+把候选结果转成高质量排序
+Evidence
+Relevant passages、source、score、metadata
+让 Agent 消费证据而不是消费网页
+04 产品优势
+完整拥有 Web → Evidence 链路
+Rove 对数据如何被发现、抓取、解析、索引、召回和排序全过程负责，而不是只包装一个 Search API。
+Agent-first
+传统搜索为人返回 SERP；Rove 为 Agent 返回结构化 Evidence、来源、相关片段、分数和元数据。
+Search 与 Browser 同一个 Runtime
+HTTP 可以读取时走轻量 Fetch；JS/交互页面自动升级 Browser Runtime，上层 Agent 无需处理差异。
+Self-owned Index
+Crawler → Corpus → Elasticsearch → Hybrid Retrieval，数据、索引与 Ranking 全部掌握在使用者手里。
+Open & Self-hosted
+无需把 Query、网页数据和内部语料交给第三方 Search SaaS；适合企业、Coding Agent 与高频 Agent 场景。
+Human-debuggable
+TUI 能观察 Crawler、Browser、Index、Retrieval、Ranking 和 Evidence，每一步都可解释、可排查。
+05 完整工作链路
+ROVE
+
+WEB
+ │
+ ▼
+Crawler / Frontier / Scheduler
+ │
+ ▼
+HTTP Fetch ── insufficient ──► Browser Runtime
+ │ │
+ └───────────────┬───────────────┘
+ ▼
+ Content Pipeline
+ Parse → Extract → Normalize
+ │
+ ▼
+ Indexer
+ │
+ ┌────────┴────────┐
+ ▼ ▼
+ BM25 Vector
+ └────────┬────────┘
+ ▼
+ Fusion
+ ▼
+ Rank / Rerank
+ ▼
+ Evidence
+ ▼
+ Agent
+Rove 的核心不是把很多工具放到同一个仓库，而是让整条链路共享统一的 Document Model、错误模型、可观察性和检索语义。
+06 典型使用场景
+场景
+Rove 承担的角色
+Research Agent
+建立可追踪 Web Corpus，输出可引用 Evidence
+Coding Agent
+抓取官方文档、Git 仓库页面与动态文档站，进行 Docs/Code Retrieval
+企业内部 Agent
+把 Public Web 与 Internal Docs 放入同一 Retrieval Pipeline
+Security / Analysis Agent
+自托管 Web Retrieval，不把敏感 Query 交给外部 Search SaaS
+Agent Framework
+直接把 Rove 作为统一 Web Tool / Runtime 集成
+07 开发者体验
+Rove 首先是一款 infra-tool，因此开发体验必须同时照顾人和 Agent：人通过 CLI/TUI 调试，Agent 通过结构化接口与 MCP 使用。
+$ rove search "browser agent infrastructure"
+$ rove fetch https://example.com
+$ rove browse https://example.com
+$ rove crawl https://docs.example.com
+$ rove index status
+$ rove mcp
+直接运行 rove 进入 TUI，可查看 Search Results、Crawler Queue、Browser Page State、Elasticsearch Index 状态、各阶段耗时与最终 Evidence。
+08 产品边界与长期价值
+Rove 做
+Rove 不做
+Web acquisition / browser / content / index / retrieval / evidence
+SaaS Dashboard / Billing / 用户体系
+完整自托管 Search Infrastructure
+依赖第三方 Search API 才能工作
+Agent-friendly Runtime 与可观察性
+通用 Agent Framework / Chatbot
+Public Web + Private Corpus 的统一检索模型
+替 Agent 做业务层推理与 Research Workflow
+长期价值
+Rove 真正要定义的不是“另一个 Crawler”或“另一个 Browser Agent”，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.
+
+===== 表格内容 =====
+产品名称 | Rove
+产品定位 | 面向 AI Agent 的开放 Web 基础设施
+产品形态 | Open-source infra tool；本地 / 自托管优先
+核心技术栈 | Go · Elasticsearch · Chromium/CDP · TUI
+核心原则 | Self-owned Retrieval · HTTP First · Deterministic First · Agent-first
+核心问题 Agent 团队真正浪费的时间，不是某一个组件不会做，而是每个团队都在重复编写 fetch → extract → browser fallback → chunk → index → retrieve → rerank 的 glue code。
+Agent ├─ Search API ├─ Crawler ├─ Playwright / Browser Automation ├─ HTML Extractor ├─ Elasticsearch / Vector DB ├─ Embedding / Reranker └─ 大量自研 Glue Code
+一句话定义 Rove is the open web infrastructure for AI agents.
+Web ↓ Acquire ↓ Understand ↓ Index ↓ Retrieve ↓ Rank ↓ Evidence ↓ Agent
+Crawl 持续发现与抓取 Web | Browse 动态页面与交互访问 | Index BM25 + Vector + Metadata | Retrieve Hybrid Retrieval | Evidence 返回可引用证据
+能力 | Rove 提供什么 | 对 Agent 的价值
+Acquisition | Crawler、URL Frontier、Scheduler、robots policy | 持续建立自己的 Web Corpus
+Retrieval Runtime | HTTP Fetcher + Browser Escalation | 静态与动态网页使用同一套访问模型
+Content Pipeline | Parse、Extract、Normalize、Dedup、Chunk | 把复杂网页统一成标准 Document
+Elasticsearch | Document / Chunk / BM25 / Vector / Filter | 拥有自己的索引与检索能力
+Ranking | Fusion、Rank、Rerank | 把候选结果转成高质量排序
+Evidence | Relevant passages、source、score、metadata | 让 Agent 消费证据而不是消费网页
+ROVE WEB │ ▼ Crawler / Frontier / Scheduler │ ▼ HTTP Fetch ── insufficient ──► Browser Runtime │ │ └───────────────┬───────────────┘ ▼ Content Pipeline Parse → Extract → Normalize │ ▼ Indexer │ ┌────────┴────────┐ ▼ ▼ BM25 Vector └────────┬────────┘ ▼ Fusion ▼ Rank / Rerank ▼ Evidence ▼ Agent
+场景 | Rove 承担的角色
+Research Agent | 建立可追踪 Web Corpus，输出可引用 Evidence
+Coding Agent | 抓取官方文档、Git 仓库页面与动态文档站，进行 Docs/Code Retrieval
+企业内部 Agent | 把 Public Web 与 Internal Docs 放入同一 Retrieval Pipeline
+Security / Analysis Agent | 自托管 Web Retrieval，不把敏感 Query 交给外部 Search SaaS
+Agent Framework | 直接把 Rove 作为统一 Web Tool / Runtime 集成
+$ rove search "browser agent infrastructure" $ rove fetch https://example.com $ rove browse https://example.com $ rove crawl https://docs.example.com $ rove index status $ rove mcp
+Rove 做 | Rove 不做
+Web acquisition / browser / content / index / retrieval / evidence | SaaS Dashboard / Billing / 用户体系
+完整自托管 Search Infrastructure | 依赖第三方 Search API 才能工作
+Agent-friendly Runtime 与可观察性 | 通用 Agent Framework / Chatbot
+Public Web + Private Corpus 的统一检索模型 | 替 Agent 做业务层推理与 Research Workflow
+长期价值 Rove 真正要定义的不是“另一个 Crawler”或“另一个 Browser Agent”，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.

@@ -1,0 +1,747 @@
+ROVE
+技术架构书
+Rove — Technical Architecture Specification
+Open web infrastructure for AI agents.
+Crawl. Browse. Index. Retrieve. Rank. Evidence.
+文档信息
+架构目标
+构建完整、自托管、Agent-first 的 Web Acquisition + Search Retrieval Infrastructure
+核心语言
+Go
+搜索与索引
+Elasticsearch
+浏览器
+Chromium + Chrome DevTools Protocol
+本地状态
+SQLite
+内容存储
+Content-addressed filesystem / 可替换 Object Store
+交互
+CLI + Bubble Tea TUI + MCP
+架构原则
+分层、可替换、幂等、可观察、HTTP First、Deterministic First
+目录
+01 架构目标与约束
+02 总体架构
+03 核心数据模型
+04 Acquisition 子系统
+05 Retrieval Runtime 与 Browser
+06 Content Pipeline
+07 Elasticsearch 与 Indexing
+08 Query / Retrieval / Ranking
+09 Evidence Engine
+10 Storage 与 Runtime State
+11 接口与 TUI
+12 安全架构
+13 可观察性与错误模型
+14 部署与运行拓扑
+15 性能、扩展与测试策略
+16 代码组织与关键决策
+01 架构目标与约束
+Rove 的架构目标不是把 Crawler、Browser、Elasticsearch 和 Reranker 简单拼接，而是建立一条共享统一数据模型、错误语义和可观察性的 Web → Evidence Pipeline。上层 Agent 不需要知道页面是通过 HTTP 还是 Browser 获取，也不需要直接理解 Elasticsearch 查询细节。
+约束
+架构响应
+必须自有搜索链路
+Crawler、Indexer、Retriever、Ranker 均在 Rove Core
+动态网页不可忽略
+Browser Runtime 为正式一等子系统
+Browser 成本高
+HTTP First + Browser Escalation + Session Pool
+需要传统与语义召回
+Elasticsearch BM25 + dense_vector + Hybrid Fusion
+Agent 需要证据而非网页
+以 Chunk/Evidence 为检索输出单元
+Infra 必须可调试
+全链路 Trace + TUI Inspector
+02 总体架构
+Interfaces
+ Go API / CLI / TUI / MCP
+ │
+ ▼
+ Search API
+ │
+ ▼
+ Query Engine
+ │
+ ┌──────────┴──────────┐
+ ▼ ▼
+ Retrieval Filters
+ BM25 / Vector │
+ └──────────┬──────────┘
+ ▼
+ Fusion / Rank
+ │
+ ▼
+ Evidence
+ ▲
+ │
+ Elasticsearch
+ ▲
+ │
+ Indexer
+ ▲
+ │
+ Content Pipeline
+ ▲
+ │
+ HTTP Fetcher / Browser Runtime
+ ▲
+ │
+ Crawler / Frontier / Scheduler
+ ▲
+ │
+ WEB
+分层边界
+层
+只负责
+不得负责
+Acquisition
+发现 URL、调度、抓取策略
+内容语义和搜索排序
+Retrieval Runtime
+获取页面原始内容
+决定搜索相关性
+Content
+解析、规范化、去重、Chunk
+存储 Retrieval Score
+Index
+持久化可检索字段与向量
+业务层 Agent 推理
+Retrieval/Ranking
+召回、融合、排序
+浏览器操作
+Evidence
+选择可引用片段与来源
+生成业务结论
+Interfaces
+命令、TUI、MCP
+实现内部搜索逻辑
+03 核心数据模型
+RawDocument
+Fetcher 的输出，保留响应状态、Headers、最终 URL、Content-Type、Raw Bytes、Fetch Method（http/browser）和 Timing。RawDocument 不做业务级正文解释。
+Document
+Document {
+ id
+ url
+ canonical_url
+ title
+ description
+ content
+ markdown
+ language
+ published_at
+ updated_at
+ fetched_at
+ source { domain, type }
+ metadata
+ content_hash
+ chunks[]
+}
+Chunk
+Chunk {
+ chunk_id
+ document_id
+ position
+ heading_path
+ content
+ token_count
+ language
+ embedding?
+ metadata
+}
+Evidence
+Evidence {
+ document_id
+ chunk_id
+ url
+ title
+ text
+ score
+ rank_features
+ published_at
+ source
+ metadata
+}
+04 Acquisition 子系统
+Seed URL / Sitemap / Imported URL
+ │
+ ▼
+ URL Frontier
+ │
+ Scheduler / Policy
+ │
+ ▼
+ Fetch Queue
+ │
+ ▼
+ Fetcher
+ │
+ ▼
+ Content Pipeline
+ │
+ └──── discovered links ────► Frontier
+URL Frontier
+字段
+用途
+normalized_url
+URL 唯一键 / 去重
+host
+Host 级限流和调度
+priority
+抓取优先级
+depth
+Crawler 深度
+source_url
+发现来源
+discovered_at
+发现时间
+next_fetch_at
+下一次允许抓取时间
+retry_count
+重试控制
+state
+queued / fetching / done / failed / blocked
+Scheduler
+Scheduler 不做简单 FIFO。选择 URL 时综合 priority、next_fetch_at、host concurrency、robots、crawl delay、retry/backoff 与 freshness。单 Host 必须有独立 token bucket / semaphore，防止某站点占满全局 workers。
+URL Canonicalization
+规范 scheme/host 大小写、default port、fragment、trailing slash。
+去除已知 tracking params，但保留可能影响内容的 query 参数。
+读取 rel=canonical 后进行二次 canonical 归并。
+Redirect destination 更新最终 canonical_url，不丢失 source relationship。
+05 Retrieval Runtime 与 Browser
+HTTP First
+URL
+ │
+ ▼
+HTTP Fetch
+ │
+ ├─ valid content ──────────────► Parse
+ │
+ └─ insufficient / dynamic
+ │
+ ▼
+ Browser Escalation
+ │
+ ▼
+ Parse
+Browser Escalation 应由可测试规则触发，例如：HTTP 401/403、正文低于阈值、脚本占比极高、典型 SPA Shell、页面明确依赖 hydration、正文需要交互后出现。规则允许配置，但默认不使用 LLM。
+Browser Runtime
+Browser Manager
+├─ Chromium Process Pool
+├─ Session
+│ ├─ Browser Context
+│ ├─ Cookie / Storage
+│ └─ Tabs
+├─ Page State Builder
+├─ Action Engine
+└─ Recovery / Timeout
+能力
+设计
+Session Reuse
+同一抓取任务/域名可复用 Browser Process，避免每 URL 启动 Chromium
+Page State
+输出 text + links + forms + interactive elements + stable ids
+Actions
+navigate/click/type/scroll/back/reload/evaluate/screenshot/download
+Timeout
+navigation、network idle、action 分别配置 timeout
+Isolation
+Context 隔离 Cookie/Storage；默认不共享敏感 session
+06 Content Pipeline
+RawDocument
+ ↓
+Content-Type Router
+ ↓
+Parser
+ ↓
+Main Content Extractor
+ ↓
+Normalizer
+ ↓
+Metadata Extractor
+ ↓
+Canonicalizer
+ ↓
+Dedup
+ ↓
+Chunker
+ ↓
+Document + Chunks
+Parser Registry
+类型
+默认策略
+text/html
+x/net/html + readability-style main content extraction
+text/plain
+直接 normalize
+application/json
+保留结构 + 可读文本视图
+text/markdown
+Markdown normalize
+application/pdf
+独立 PDF Parser 接口；解析后进入同一 Document Model
+Dedup
+Dedup 分四层：URL dedup → canonical dedup → exact content hash → near duplicate。Near duplicate 可使用 SimHash/MinHash 等 deterministic 方法；不得依赖 LLM。
+Chunking
+Chunk 以语义结构优先，而不是固定字符切片。优先保持 Heading/Paragraph/List/Table 单元，在超过上限时再进行窗口切分。Chunk 必须保存 heading_path 与 position，便于 Evidence 回溯。
+07 Elasticsearch 与 Indexing
+索引职责
+核心决策
+Elasticsearch 是 Rove 的一等核心组件：同时承担 BM25、Metadata Filter、dense_vector、Hybrid Retrieval 所需索引能力。SQLite 不承担主搜索。
+Index Alias
+rove-documents → rove-documents-v001
+rove-chunks → rove-chunks-v001
+
+schema change:
+create v002 → bulk reindex → validate → atomic alias switch
+Document Index Mapping（概念）
+字段
+ES 类型 / 目的
+id
+keyword
+url / canonical_url
+keyword
+title
+text + keyword
+description
+text
+content
+text，可选是否完整存储
+language
+keyword
+published_at / fetched_at
+date
+source.domain
+keyword
+source.type
+keyword
+content_hash
+keyword
+metadata
+flattened / 明确 schema 字段
+Chunk Index Mapping（概念）
+字段
+ES 类型 / 目的
+chunk_id / document_id
+keyword
+title
+text
+content
+text
+heading_path
+text + keyword
+position
+integer
+language
+keyword
+published_at
+date
+domain
+keyword
+embedding
+dense_vector
+token_count
+integer
+Indexing Worker
+Indexing Worker 接收标准 Document，完成 Chunk、Embedding（若启用）、Bulk Request 和失败重试。写入必须以 document_id/chunk_id 幂等；Document 更新时必须清理或覆盖旧 Chunks，避免 stale evidence。
+08 Query / Retrieval / Ranking
+Query
+ │
+ ▼
+Query Processor
+ │
+ ├─ normalize
+ ├─ language
+ ├─ filters
+ └─ intent / vertical hints
+ │
+ ├────────────┐
+ ▼ ▼
+BM25 Vector
+ │ │
+ └─────┬──────┘
+ ▼
+ Fusion
+ ▼
+ Ranker
+ ▼
+ Reranker?
+ ▼
+ Evidence
+BM25
+适合专有名词、错误信息、API 名称、代码符号、Exact Term。Search Fields 采用不同 boost，例如 title > heading_path > chunk.content；具体权重必须通过 benchmark 调整，而不是写死为产品语义。
+Vector
+Vector Retriever 通过 Embedder 接口获得 query embedding；Core 不绑定供应商。允许 local model、OpenAI-compatible endpoint 或 custom implementation。Elasticsearch dense_vector 负责 ANN/KNN 召回。
+Fusion
+默认采用 RRF 合并 Lexical 与 Vector Top-K。Fusion 层保持独立，使后续可以引入 weighted fusion 或 learned fusion，而不改变 Retriever 接口。
+Ranker / Reranker
+层
+职责
+是否必须模型
+Ranker
+relevance、freshness、domain/source quality、language、duplicate penalty
+否
+Reranker
+Cross-encoder / LLM / custom 对 Top-N 再排序
+否；可选增强
+09 Evidence Engine
+Evidence Engine 将排序后的 Chunk 转换为 Agent-friendly Evidence。它不生成业务结论，只保证每条 Evidence 可追踪到 Document、Chunk 和 Source。
+输出
+要求
+text
+与 Query 高相关的原始/规范化片段
+url
+最终 canonical URL
+title
+Document title
+score
+统一后的 Evidence score
+chunk_id
+可追溯索引单元
+published_at
+可用于 freshness 推理
+source
+domain + source_type
+rank_features
+可选 Debug 信息
+10 Storage 与 Runtime State
+存储
+职责
+禁止承担
+Elasticsearch
+Documents / Chunks / Vectors / Search Metadata
+Crawler Queue
+Filesystem/Object Store
+Raw HTML、normalized snapshots、optional screenshots/downloads
+Search ranking
+SQLite
+Frontier/Scheduler state、cache metadata、runtime sessions/settings
+主全文检索
+Content-addressed Object Store
+objects/
+ ab/
+ abcdef123456...
+Raw/normalized content 使用 hash 作为对象键；SQLite/ES 保存对象引用，避免重复大对象进入多个存储。
+11 接口与 TUI
+Core API
+Core 对外提供 Search、Fetch、Browse、Crawl、Map、Extract、Index 等稳定能力。Interfaces 只能依赖 Core，Core 不得依赖 TUI/Cobra/MCP。
+CLI
+rove search <query> --json
+rove fetch <url> --mode auto|http|browser
+rove browse <url>
+rove crawl <seed>
+rove map <url>
+rove extract <url>
+rove index status|stats|rebuild
+rove mcp
+TUI Architecture
+TUI 使用 Bubble Tea 构建，遵循单向 Model → Update → View。TUI 不直接访问 Elasticsearch 或 Browser，而调用统一 Application Service，并订阅 Runtime Events/Telemetry。
+TUI
+ │
+ ▼
+Application Service
+ │
+ ├─ Search Service
+ ├─ Crawl Service
+ ├─ Browser Service
+ └─ Runtime Inspector
+ │
+ ▼
+ Core
+12 安全架构
+威胁
+默认控制
+SSRF
+阻止 loopback、private network、link-local、cloud metadata；显式 allow-private 才开放
+Redirect Abuse
+限制 redirect count，并对每次目标重新执行 network policy
+Huge/Compressed Payload
+max body + decompression limit
+Crawler Explosion
+max_pages、max_depth、domain allowlist、frontier quota
+Browser Resource Exhaustion
+browser/session pool limit、page timeout、memory pressure handling
+Sensitive Logging
+Headers/Query 参数脱敏；不记录 Cookie/Authorization
+Malicious Download
+默认禁止或隔离下载目录，并限制大小/类型
+13 可观察性与错误模型
+Tracing
+trace: query-123
+search
+├─ query_processor
+├─ lexical_retrieve
+├─ vector_retrieve
+├─ fusion
+├─ rank
+└─ evidence
+
+trace: fetch-456
+fetch
+├─ http: 403
+├─ escalation: browser
+├─ render
+├─ extract
+└─ index
+Error Taxonomy
+类别
+示例
+retryable
+Network
+DNS / connection reset
+通常是
+Timeout
+fetch/browser/index timeout
+视组件而定
+Policy
+Blocked / RobotsDenied
+否
+Content
+Parse / Extraction / UnsupportedContent
+通常否
+Browser
+Navigation / Action / Crash
+部分可重试
+Index
+Elasticsearch / Bulk rejection
+通常可重试
+Embedding
+Provider/Model error
+可配置
+14 部署与运行拓扑
+本地默认
+Developer Machine
+├─ rove binary
+├─ Chromium
+├─ SQLite
+├─ local object store
+└─ Elasticsearch (Docker Compose recommended)
+容器化
+Docker Compose
+├─ rove
+├─ elasticsearch
+└─ optional chromium service
+Rove 不要求 Kubernetes。未来需要规模化时，Acquisition Workers、Browser Workers、Indexing Workers 可以按同一接口拆分为独立进程；这一能力属于部署扩展，不改变 Core Domain Model。
+15 性能、扩展与测试策略
+性能目标
+指标
+目标
+Search P50
+< 200ms（本地正常索引，不含外部 embedding API）
+Search P95
+< 500ms
+HTTP Rove overhead
+目标 < 20ms，不含网络 RTT
+Browser
+复用 Process/Session，避免 per-URL cold start
+Index
+Bulk ingestion；支持 backpressure
+Backpressure
+Pipeline 采用有界 Queue。Fetcher、Parser、Indexer 任一环节变慢时不得无限堆积内存；Scheduler 根据 downstream queue depth 调整 dispatch rate。
+测试金字塔
+测试
+内容
+Unit
+URL normalize、policy、chunk、fusion、ranking feature、error mapping
+Component
+HTTP server fixture、ES test index、Chromium fixture pages
+Pipeline
+seed → crawl → index → search → evidence
+Regression Corpus
+静态/SPA/重定向/403/PDF/重复页面等固定样本
+Retrieval Benchmark
+query → expected relevant docs/chunks；评估 Recall@K、nDCG、MRR、Evidence hit rate
+16 代码组织与关键决策
+rove/
+├─ cmd/rove/
+├─ internal/
+│ ├─ app/
+│ ├─ config/
+│ ├─ runtime/
+│ └─ scheduler/
+├─ pkg/
+│ ├─ acquisition/
+│ ├─ crawler/
+│ ├─ fetch/
+│ ├─ browser/
+│ ├─ content/
+│ ├─ document/
+│ ├─ index/
+│ ├─ elastic/
+│ ├─ retrieval/
+│ ├─ ranking/
+│ ├─ evidence/
+│ └─ rove/
+├─ tui/
+├─ protocol/
+├─ benchmarks/
+├─ examples/
+└─ tests/
+关键 Architecture Decisions
+ADR
+决策
+原因
+ADR-001
+Go Core
+并发、单二进制、长期 Runtime、CLI/TUI 生态
+ADR-002
+Elasticsearch 为主 Index
+同时满足 BM25、Vector、Metadata Filter 与成熟运维能力
+ADR-003
+HTTP First / Browser Escalation
+控制浏览器资源成本并覆盖动态 Web
+ADR-004
+Document/Chunk 双层索引
+页面级 metadata 与检索单元职责分离
+ADR-005
+Deterministic First
+核心 Infra 无 LLM 依赖仍能工作
+ADR-006
+Core 与 Interface 分离
+TUI/CLI/MCP 共用同一 Runtime，不污染 Domain
+ADR-007
+Evidence 为最终检索对象
+面向 Agent，而不是传统 SERP 用户
+架构结论
+Rove 的系统边界固定为：Acquire → Access → Understand → Index → Retrieve → Rank → Evidence。Browser Use、Exa、Tavily、AnySearch 等产品只能作为某些设计思想的参考，Rove Core 自己拥有整条基础设施链路。
+
+===== 表格内容 =====
+架构目标 | 构建完整、自托管、Agent-first 的 Web Acquisition + Search Retrieval Infrastructure
+核心语言 | Go
+搜索与索引 | Elasticsearch
+浏览器 | Chromium + Chrome DevTools Protocol
+本地状态 | SQLite
+内容存储 | Content-addressed filesystem / 可替换 Object Store
+交互 | CLI + Bubble Tea TUI + MCP
+架构原则 | 分层、可替换、幂等、可观察、HTTP First、Deterministic First
+约束 | 架构响应
+必须自有搜索链路 | Crawler、Indexer、Retriever、Ranker 均在 Rove Core
+动态网页不可忽略 | Browser Runtime 为正式一等子系统
+Browser 成本高 | HTTP First + Browser Escalation + Session Pool
+需要传统与语义召回 | Elasticsearch BM25 + dense_vector + Hybrid Fusion
+Agent 需要证据而非网页 | 以 Chunk/Evidence 为检索输出单元
+Infra 必须可调试 | 全链路 Trace + TUI Inspector
+Interfaces Go API / CLI / TUI / MCP │ ▼ Search API │ ▼ Query Engine │ ┌──────────┴──────────┐ ▼ ▼ Retrieval Filters BM25 / Vector │ └──────────┬──────────┘ ▼ Fusion / Rank │ ▼ Evidence ▲ │ Elasticsearch ▲ │ Indexer ▲ │ Content Pipeline ▲ │ HTTP Fetcher / Browser Runtime ▲ │ Crawler / Frontier / Scheduler ▲ │ WEB
+层 | 只负责 | 不得负责
+Acquisition | 发现 URL、调度、抓取策略 | 内容语义和搜索排序
+Retrieval Runtime | 获取页面原始内容 | 决定搜索相关性
+Content | 解析、规范化、去重、Chunk | 存储 Retrieval Score
+Index | 持久化可检索字段与向量 | 业务层 Agent 推理
+Retrieval/Ranking | 召回、融合、排序 | 浏览器操作
+Evidence | 选择可引用片段与来源 | 生成业务结论
+Interfaces | 命令、TUI、MCP | 实现内部搜索逻辑
+Document { id url canonical_url title description content markdown language published_at updated_at fetched_at source { domain, type } metadata content_hash chunks[] }
+Chunk { chunk_id document_id position heading_path content token_count language embedding? metadata }
+Evidence { document_id chunk_id url title text score rank_features published_at source metadata }
+Seed URL / Sitemap / Imported URL │ ▼ URL Frontier │ Scheduler / Policy │ ▼ Fetch Queue │ ▼ Fetcher │ ▼ Content Pipeline │ └──── discovered links ────► Frontier
+字段 | 用途
+normalized_url | URL 唯一键 / 去重
+host | Host 级限流和调度
+priority | 抓取优先级
+depth | Crawler 深度
+source_url | 发现来源
+discovered_at | 发现时间
+next_fetch_at | 下一次允许抓取时间
+retry_count | 重试控制
+state | queued / fetching / done / failed / blocked
+URL │ ▼ HTTP Fetch │ ├─ valid content ──────────────► Parse │ └─ insufficient / dynamic │ ▼ Browser Escalation │ ▼ Parse
+Browser Manager ├─ Chromium Process Pool ├─ Session │ ├─ Browser Context │ ├─ Cookie / Storage │ └─ Tabs ├─ Page State Builder ├─ Action Engine └─ Recovery / Timeout
+能力 | 设计
+Session Reuse | 同一抓取任务/域名可复用 Browser Process，避免每 URL 启动 Chromium
+Page State | 输出 text + links + forms + interactive elements + stable ids
+Actions | navigate/click/type/scroll/back/reload/evaluate/screenshot/download
+Timeout | navigation、network idle、action 分别配置 timeout
+Isolation | Context 隔离 Cookie/Storage；默认不共享敏感 session
+RawDocument ↓ Content-Type Router ↓ Parser ↓ Main Content Extractor ↓ Normalizer ↓ Metadata Extractor ↓ Canonicalizer ↓ Dedup ↓ Chunker ↓ Document + Chunks
+类型 | 默认策略
+text/html | x/net/html + readability-style main content extraction
+text/plain | 直接 normalize
+application/json | 保留结构 + 可读文本视图
+text/markdown | Markdown normalize
+application/pdf | 独立 PDF Parser 接口；解析后进入同一 Document Model
+核心决策 Elasticsearch 是 Rove 的一等核心组件：同时承担 BM25、Metadata Filter、dense_vector、Hybrid Retrieval 所需索引能力。SQLite 不承担主搜索。
+rove-documents → rove-documents-v001 rove-chunks → rove-chunks-v001 schema change: create v002 → bulk reindex → validate → atomic alias switch
+字段 | ES 类型 / 目的
+id | keyword
+url / canonical_url | keyword
+title | text + keyword
+description | text
+content | text，可选是否完整存储
+language | keyword
+published_at / fetched_at | date
+source.domain | keyword
+source.type | keyword
+content_hash | keyword
+metadata | flattened / 明确 schema 字段
+字段 | ES 类型 / 目的
+chunk_id / document_id | keyword
+title | text
+content | text
+heading_path | text + keyword
+position | integer
+language | keyword
+published_at | date
+domain | keyword
+embedding | dense_vector
+token_count | integer
+Query │ ▼ Query Processor │ ├─ normalize ├─ language ├─ filters └─ intent / vertical hints │ ├────────────┐ ▼ ▼ BM25 Vector │ │ └─────┬──────┘ ▼ Fusion ▼ Ranker ▼ Reranker? ▼ Evidence
+层 | 职责 | 是否必须模型
+Ranker | relevance、freshness、domain/source quality、language、duplicate penalty | 否
+Reranker | Cross-encoder / LLM / custom 对 Top-N 再排序 | 否；可选增强
+输出 | 要求
+text | 与 Query 高相关的原始/规范化片段
+url | 最终 canonical URL
+title | Document title
+score | 统一后的 Evidence score
+chunk_id | 可追溯索引单元
+published_at | 可用于 freshness 推理
+source | domain + source_type
+rank_features | 可选 Debug 信息
+存储 | 职责 | 禁止承担
+Elasticsearch | Documents / Chunks / Vectors / Search Metadata | Crawler Queue
+Filesystem/Object Store | Raw HTML、normalized snapshots、optional screenshots/downloads | Search ranking
+SQLite | Frontier/Scheduler state、cache metadata、runtime sessions/settings | 主全文检索
+objects/ ab/ abcdef123456...
+rove search <query> --json rove fetch <url> --mode auto|http|browser rove browse <url> rove crawl <seed> rove map <url> rove extract <url> rove index status|stats|rebuild rove mcp
+TUI │ ▼ Application Service │ ├─ Search Service ├─ Crawl Service ├─ Browser Service └─ Runtime Inspector │ ▼ Core
+威胁 | 默认控制
+SSRF | 阻止 loopback、private network、link-local、cloud metadata；显式 allow-private 才开放
+Redirect Abuse | 限制 redirect count，并对每次目标重新执行 network policy
+Huge/Compressed Payload | max body + decompression limit
+Crawler Explosion | max_pages、max_depth、domain allowlist、frontier quota
+Browser Resource Exhaustion | browser/session pool limit、page timeout、memory pressure handling
+Sensitive Logging | Headers/Query 参数脱敏；不记录 Cookie/Authorization
+Malicious Download | 默认禁止或隔离下载目录，并限制大小/类型
+trace: query-123 search ├─ query_processor ├─ lexical_retrieve ├─ vector_retrieve ├─ fusion ├─ rank └─ evidence trace: fetch-456 fetch ├─ http: 403 ├─ escalation: browser ├─ render ├─ extract └─ index
+类别 | 示例 | retryable
+Network | DNS / connection reset | 通常是
+Timeout | fetch/browser/index timeout | 视组件而定
+Policy | Blocked / RobotsDenied | 否
+Content | Parse / Extraction / UnsupportedContent | 通常否
+Browser | Navigation / Action / Crash | 部分可重试
+Index | Elasticsearch / Bulk rejection | 通常可重试
+Embedding | Provider/Model error | 可配置
+Developer Machine ├─ rove binary ├─ Chromium ├─ SQLite ├─ local object store └─ Elasticsearch (Docker Compose recommended)
+Docker Compose ├─ rove ├─ elasticsearch └─ optional chromium service
+指标 | 目标
+Search P50 | < 200ms（本地正常索引，不含外部 embedding API）
+Search P95 | < 500ms
+HTTP Rove overhead | 目标 < 20ms，不含网络 RTT
+Browser | 复用 Process/Session，避免 per-URL cold start
+Index | Bulk ingestion；支持 backpressure
+测试 | 内容
+Unit | URL normalize、policy、chunk、fusion、ranking feature、error mapping
+Component | HTTP server fixture、ES test index、Chromium fixture pages
+Pipeline | seed → crawl → index → search → evidence
+Regression Corpus | 静态/SPA/重定向/403/PDF/重复页面等固定样本
+Retrieval Benchmark | query → expected relevant docs/chunks；评估 Recall@K、nDCG、MRR、Evidence hit rate
+rove/ ├─ cmd/rove/ ├─ internal/ │ ├─ app/ │ ├─ config/ │ ├─ runtime/ │ └─ scheduler/ ├─ pkg/ │ ├─ acquisition/ │ ├─ crawler/ │ ├─ fetch/ │ ├─ browser/ │ ├─ content/ │ ├─ document/ │ ├─ index/ │ ├─ elastic/ │ ├─ retrieval/ │ ├─ ranking/ │ ├─ evidence/ │ └─ rove/ ├─ tui/ ├─ protocol/ ├─ benchmarks/ ├─ examples/ └─ tests/
+ADR | 决策 | 原因
+ADR-001 | Go Core | 并发、单二进制、长期 Runtime、CLI/TUI 生态
+ADR-002 | Elasticsearch 为主 Index | 同时满足 BM25、Vector、Metadata Filter 与成熟运维能力
+ADR-003 | HTTP First / Browser Escalation | 控制浏览器资源成本并覆盖动态 Web
+ADR-004 | Document/Chunk 双层索引 | 页面级 metadata 与检索单元职责分离
+ADR-005 | Deterministic First | 核心 Infra 无 LLM 依赖仍能工作
+ADR-006 | Core 与 Interface 分离 | TUI/CLI/MCP 共用同一 Runtime，不污染 Domain
+ADR-007 | Evidence 为最终检索对象 | 面向 Agent，而不是传统 SERP 用户
+架构结论 Rove 的系统边界固定为：Acquire → Access → Understand → Index → Retrieve → Rank → Evidence。Browser Use、Exa、Tavily、AnySearch 等产品只能作为某些设计思想的参考，Rove Core 自己拥有整条基础设施链路。

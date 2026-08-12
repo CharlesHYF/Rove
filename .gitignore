@@ -1,0 +1,63 @@
+# --- 编译与构建 ---
+target/
+dist/
+build/
+out/
+*.class
+*.jar
+*.war
+*.exe
+*.dll
+bin/
+
+# --- 依赖 ---
+node_modules/
+.pnpm-store/
+vendor/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.local
+
+# --- Go ---
+*.test
+*.out
+
+# --- 环境与 IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- AI 工具残留 ---
+.superpower/
+.superpowers/
+.claude/
+.cursor/
+.codex/
+.agents/
+.opencode/
+
+# --- 操作系统 ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# --- 日志 ---
+*.log
+logs/
+
+# --- 运行时 ---
+*.pid
+coverage/
+
+# --- 过程产物（spec/plan/设计草稿，禁止提交） ---
+docs/superpowers/
+scratch/
