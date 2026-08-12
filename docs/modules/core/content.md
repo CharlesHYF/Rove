@@ -36,9 +36,9 @@ rawURL 合法；relCanonical 可为空。
 ### 返回
 规范化 URL；错误 content.invalid_url。
 
-## Deduper（四层去重）
+## Deduper（三层去重）
 ### 功能描述
-canonical -> exact content hash -> near duplicate（SimHash，Hamming <= 3）三层检查；URL 层由 frontier 负责（M4）。非重复文档登记进状态。
+canonical -> exact content hash -> near duplicate（token 集合 Jaccard >= 0.8，确定性、任意长度稳定；PRD 允许 SimHash/MinHash 等确定性方法）三层检查；URL 层由 frontier 负责（M4）。非重复文档登记进状态。
 
 ### 接口信息
 | 函数 | 签名 | 说明 |
