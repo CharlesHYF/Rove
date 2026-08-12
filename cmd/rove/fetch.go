@@ -13,6 +13,7 @@ import (
 
 	"rove/internal/config"
 	"rove/pkg/content"
+	"rove/pkg/document"
 	"rove/pkg/fetch"
 	"rove/pkg/rove"
 )
@@ -45,11 +46,28 @@ func runFetch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	raw, err := newFetcher(cfg).Fetch(cmd.Context(), &fetch.Request{URL: args[0], Mode: fetch.FetchMode(fetchFlags.mode)})
-	if err != nil {
-		if errors.Is(err, fetch.ErrEscalationRequired) {
-			return rove.NewError("fetch.escalation_required", rove.CategoryBrowser, false, "页面需要浏览器渲染（M5 里程碑支持）：%s", args[0])
+	var raw *document.RawDocument
+	if fetchFlags.mode == "browser" {
+		manager, browserErr := newBrowserManager(cfg)
+		if browserErr != nil {
+			return browserErr
 		}
+		defer manager.Close()
+		raw, err = manager.Fetch(cmd.Context(), args[0])
+	} else {
+		raw, err = newFetcher(cfg).Fetch(cmd.Context(), &fetch.Request{URL: args[0], Mode: fetch.FetchMode(fetchFlags.mode)})
+		if err != nil && errors.Is(err, fetch.ErrEscalationRequired) && fetchFlags.mode == "auto" {
+			// HTTP 内容不足 -> 浏览器升级（验收 A2，进入同一 Document Pipeline）
+			manager, browserErr := newBrowserManager(cfg)
+			if browserErr != nil {
+				return rove.NewError("fetch.escalation_required", rove.CategoryBrowser, false,
+					"页面需要浏览器渲染：%s（%v）", args[0], browserErr)
+			}
+			defer manager.Close()
+			raw, err = manager.Fetch(cmd.Context(), args[0])
+		}
+	}
+	if err != nil {
 		return err
 	}
 

@@ -43,6 +43,7 @@ type Config struct {
 	Embedder EmbedderConfig `yaml:"embedder"`
 	Search   SearchConfig   `yaml:"search"`
 	Index    IndexConfig    `yaml:"index"`
+	Browser  BrowserConfig  `yaml:"browser"`
 }
 
 // FetchConfig 抓取相关配置。
@@ -98,6 +99,13 @@ type IndexConfig struct {
 	Prefix       string `yaml:"prefix"`
 }
 
+// BrowserConfig 浏览器配置（M5 起生效）。
+type BrowserConfig struct {
+	Enabled        bool     `yaml:"enabled"`
+	ExecutablePath string   `yaml:"executable_path"`
+	Timeout        Duration `yaml:"timeout"`
+}
+
 // Default 返回全部默认值。
 func Default() *Config {
 
@@ -116,6 +124,7 @@ func Default() *Config {
 		Embedder: EmbedderConfig{Type: "pseudo"},
 		Search:   SearchConfig{TopK: 10},
 		Index:    IndexConfig{EmbeddingDim: 256, Prefix: "rove"},
+		Browser:  BrowserConfig{Enabled: true, Timeout: Duration{Duration: 30 * time.Second}},
 	}
 }
 
@@ -159,6 +168,8 @@ func applyEnv(c *Config) {
 	applyString(&c.Embedder.Type, "ROVE_EMBEDDER_TYPE")
 	applyString(&c.Embedder.Endpoint, "ROVE_EMBEDDER_ENDPOINT")
 	applyBool(&c.Robots.Enabled, "ROVE_ROBOTS_ENABLED")
+	applyBool(&c.Browser.Enabled, "ROVE_BROWSER_ENABLED")
+	applyString(&c.Browser.ExecutablePath, "ROVE_BROWSER_EXECUTABLE")
 }
 
 // applyBool 应用布尔环境变量。
