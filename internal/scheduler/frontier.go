@@ -41,6 +41,7 @@ func NewFrontier(driverPath string) (*Frontier, error) {
 	if err != nil {
 		return nil, rove.NewError("frontier.open", rove.CategoryIndex, true, "open frontier db: %v", err)
 	}
+	db.SetMaxOpenConns(1) // :memory: 数据库按连接隔离，必须固定单连接
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, rove.NewError("frontier.open", rove.CategoryIndex, true, "init frontier schema: %v", err)

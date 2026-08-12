@@ -61,13 +61,15 @@ func (s *Scheduler) Complete(ctx context.Context, entry *FrontierEntry, err erro
 	return s.frontier.UpdateState(ctx, entry.NormalizedURL, "queued", retries, nextFetch)
 }
 
-// claimNext 从 frontier 取一个到期条目，host 令牌可用时原子标记 fetching。
+// claimNext 原子认领一个到期条目（UPDATE ... RETURNING，避免并发双取），host 令牌不可用则回退。
 func (s *Scheduler) claimNext(ctx context.Context) (*FrontierEntry, error) {
 
 	var entry FrontierEntry
 	var discovered, nextFetch string
-	err := s.frontier.DB.QueryRowContext(ctx, `SELECT normalized_url, host, priority, depth, source_url, discovered_at, next_fetch_at, retry_count, state
-		FROM frontier WHERE state='queued' AND next_fetch_at <= ? ORDER BY priority DESC, next_fetch_at LIMIT 1`,
+	err := s.frontier.DB.QueryRowContext(ctx, `UPDATE frontier SET state='fetching'
+		WHERE normalized_url = (SELECT normalized_url FROM frontier
+			WHERE state='queued' AND next_fetch_at <= ? ORDER BY priority DESC, next_fetch_at LIMIT 1)
+		RETURNING normalized_url, host, priority, depth, source_url, discovered_at, next_fetch_at, retry_count, state`,
 		time.Now().UTC().Format(time.RFC3339)).Scan(
 		&entry.NormalizedURL, &entry.Host, &entry.Priority, &entry.Depth, &entry.SourceURL,
 		&discovered, &nextFetch, &entry.RetryCount, &entry.State)
@@ -78,11 +80,9 @@ func (s *Scheduler) claimNext(ctx context.Context) (*FrontierEntry, error) {
 		return nil, fmt.Errorf("claim next: %w", err)
 	}
 	if !s.acquireHostToken(entry.Host) {
+		// host 令牌不可用，回退为 queued（下次到期即可再认领）
+		_ = s.frontier.UpdateState(ctx, entry.NormalizedURL, "queued", entry.RetryCount, time.Now().UTC())
 		return nil, nil
-	}
-	if err := s.frontier.UpdateState(ctx, entry.NormalizedURL, "fetching", entry.RetryCount, time.Now().UTC()); err != nil {
-		s.releaseHostToken(entry.Host)
-		return nil, err
 	}
 	entry.DiscoveredAt = parseTime(discovered)
 	entry.NextFetchAt = parseTime(nextFetch)
