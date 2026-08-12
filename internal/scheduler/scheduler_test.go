@@ -77,7 +77,10 @@ func TestSchedulerFailureBackoff(t *testing.T) {
 	count, _ := frontier.Count(ctx, "queued")
 	require.Equal(t, 1, count)
 
+	// 拨回 next_fetch_at（绕过退避等待）后再次尝试
+	require.NoError(t, frontier.UpdateState(ctx, entry.NormalizedURL, "queued", 1, time.Now().UTC()))
 	got, _ = sched.Next(ctx)
+	require.NotNil(t, got, "entry must be claimable after next_fetch_at reset")
 	require.NoError(t, sched.Complete(ctx, got, errTestFetch))
 	count, _ = frontier.Count(ctx, "failed")
 	require.Equal(t, 1, count, "retry limit exceeded -> failed")
