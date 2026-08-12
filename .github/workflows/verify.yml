@@ -1,0 +1,82 @@
+# 文件作用：CI 交付闸门 -- push 到 agents/feature/** 或 PR 到 main 时,云端强制 make verify 并扫描提交信息,不依赖本地自觉。
+# 创建日期：2026-08-12
+# 修改日期：2026-08-12
+name: verify
+
+on:
+  push:
+    branches:
+      - "agents/feature/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 规范校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: scripts/check.sh
+        run: bash scripts/check.sh
+
+  commit-scan:
+    name: 提交信息扫描
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 扫描破折号/引号/Emoji/AI 署名
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            range="${{ github.event.before }}..${{ github.sha }}"
+          fi
+          msgs=$(git log --format='%B' "${range}" 2>/dev/null || git log --format='%B' -1)
+          fail=0
+          if printf '%s' "${msgs}" | perl -CSD -e 'while(<>){exit 0 if /[\x{2010}-\x{2015}\x{2212}\x{2e3a}\x{2e3b}\x{ff0d}\x{2018}\x{2019}\x{201c}\x{201d}\x{300c}-\x{300f}\x{ff02}\x{ff07}\x{1F300}-\x{1FAFF}\x{1F1E6}-\x{1F1FF}\x{2600}-\x{27BF}\x{FE0F}]/} exit 1'; then
+            echo "[NG] 提交信息含被禁字符(Unicode 破折号/引号/Emoji),请改用半角。"
+            fail=1
+          fi
+          if printf '%s' "${msgs}" | grep -iEq 'co-authored-by:.*(claude|gpt|copilot|cursor|gemini|anthropic)|generated with .*(claude|copilot|cursor)|noreply@anthropic'; then
+            echo "[NG] 提交信息含 AI 联合署名/水印,须仅署名 Charles。"
+            fail=1
+          fi
+          if [ "${fail}" = "0" ]; then
+            echo "[OK] 提交信息干净。"
+          fi
+          exit "${fail}"
+
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        if: ${{ hashFiles('pom.xml') != '' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Setup Go
+        if: ${{ hashFiles('go.mod') != '' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Setup Python
+        if: ${{ hashFiles('pyproject.toml') != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup Node
+        if: ${{ hashFiles('frontend/package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: scripts/test.sh
+        run: bash scripts/test.sh
