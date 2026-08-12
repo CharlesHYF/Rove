@@ -78,5 +78,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+      - name: Start Elasticsearch
+        run: |
+          docker compose up -d elasticsearch
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:9200 >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:9200
       - name: scripts/test.sh
         run: bash scripts/test.sh
+        env:
+          ROVE_TEST_ES_URL: http://localhost:9200

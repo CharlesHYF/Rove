@@ -8,18 +8,21 @@ Crawl. Browse. Index. Retrieve. Rank. Evidence.
 
 ## 里程碑状态
 
-- [x] M1 骨架 + Fetch + Content（当前）
-- [ ] M2 ES 索引 + BM25
+- [x] M1 骨架 + Fetch + Content
+- [x] M2 ES 索引 + BM25（当前）
 - [ ] M3 Vector + Hybrid + Evidence
 - [ ] M4 Crawler
 - [ ] M5 Browser Escalation
 - [ ] M6 TUI + 收尾验收
 
-## 快速开始（M1）
+## 快速开始（M2）
 
 ```bash
-go build -o bin/rove ./cmd/rove
-./bin/rove fetch https://example.com --json
+docker compose up -d elasticsearch     # 启动 ES
+./bin/rove index init                   # 初始化索引
+./bin/rove fetch https://example.com    # 抓取（M1）
+./bin/rove index status                 # 索引状态
+./bin/rove search "browser agent" --json
 ```
 
 > auto 模式下，HTTP 内容不足（SPA/需交互）会提示需要浏览器渲染，浏览器能力在 M5 里程碑提供。
