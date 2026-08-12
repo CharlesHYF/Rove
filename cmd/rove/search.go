@@ -65,7 +65,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Language: searchFlags.language,
 		},
 	}
-	result, err := app.NewSearch(retrieval.New(client)).Search(cmd.Context(), query)
+	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder()))
+	result, err := searchService.Search(cmd.Context(), query)
+	if err != nil {
+		return err
+	}
+	items, err := searchService.Evidence(cmd.Context(), result)
 	if err != nil {
 		return err
 	}
@@ -73,14 +78,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if searchFlags.json {
 		encoder := json.NewEncoder(cmd.OutOrStdout())
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(protocol.FromSearchResult(result))
+		return encoder.Encode(protocol.FromSearchResult(result, items))
 	}
 
 	cmd.Printf("query: %s (trace %s)\n", result.Query, result.TraceID)
-	for rank, hit := range result.Hits {
-		cmd.Printf("%d. %s  [%.3f]\n", rank+1, hit.Document.Title, hit.Score)
-		cmd.Printf("   %s\n", hit.Document.URL)
-		cmd.Printf("   %s\n", hit.Chunk.Content)
+	for rank, item := range items {
+		cmd.Printf("%d. %s  [%.3f]\n", rank+1, item.Title, item.Score)
+		cmd.Printf("   %s\n", item.URL)
+		cmd.Printf("   %s\n", item.Text)
 	}
 	return nil
 }

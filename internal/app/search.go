@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"rove/pkg/document"
+	"rove/pkg/evidence"
 	"rove/pkg/index"
 	"rove/pkg/retrieval"
 )
@@ -29,6 +30,12 @@ func NewSearch(retriever *retrieval.Retriever) *SearchService {
 func (s *SearchService) Search(ctx context.Context, q *retrieval.Query) (*retrieval.SearchResult, error) {
 
 	return s.retriever.Search(ctx, q)
+}
+
+// Evidence 将检索结果转为证据列表。
+func (s *SearchService) Evidence(ctx context.Context, result *retrieval.SearchResult) ([]evidence.Evidence, error) {
+
+	return evidence.New().Build(ctx, result)
 }
 
 // IndexService 索引服务。

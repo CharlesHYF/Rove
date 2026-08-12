@@ -57,6 +57,7 @@ func TestSearchCommand(t *testing.T) {
 	rootCmd.SetArgs([]string{"search", "browser", "--json"})
 	require.NoError(t, rootCmd.Execute())
 	require.Contains(t, out.String(), `"Title": "Browser Doc"`)
+	require.Contains(t, out.String(), `"Evidence"`)
 	require.Contains(t, out.String(), `"TraceID"`)
 
 	// 人类可读输出（重置 flag 与 buffer）
