@@ -91,10 +91,10 @@ func (c *RobotsClient) load(ctx context.Context, key string) (robotsResult, erro
 	return result, nil
 }
 
-// robotsKey 生成缓存键：scheme://host（小写）。
+// robotsKey 生成缓存键：scheme://host[:port]（小写）。
 func robotsKey(u *url.URL) string {
 
-	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Hostname())
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
 }
 
 // hostOf 提取 URL 的 hostname（小写）。
