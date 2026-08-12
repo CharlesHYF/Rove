@@ -13,7 +13,7 @@ VIOLATIONS=0
 SOURCE_EXT_REGEX='\.(java|kt|kts|go|py|js|jsx|ts|tsx|vue|sql|sh|html|css|scss)$'
 
 # 文本扫描排除的二进制/资源扩展名(禁用字符检查跳过这些)
-BINARY_EXT_REGEX='\.(png|jpe?g|gif|webp|ico|svg|pdf|zip|gz|tar|jar|class|woff2?|ttf|eot|mp[34]|mov|lock)$'
+BINARY_EXT_REGEX='\.(png|jpe?g|gif|webp|ico|svg|pdf|docx?|zip|gz|tar|jar|class|woff2?|ttf|eot|mp[34]|mov|lock)$'
 
 # 必需的项目级文件清单
 REQUIRED_FILES=(
