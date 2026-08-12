@@ -42,6 +42,7 @@ func renderSearch(m *Model) string {
 		sb.WriteString("(输入查询后回车执行；Tab 切换视图)\n")
 		return sb.String()
 	}
+	sb.WriteString(fmt.Sprintf("query: %s\n", m.searchResult.Query))
 	sb.WriteString(fmt.Sprintf("trace %s  timings: ", m.searchResult.TraceID))
 	for key, value := range m.searchResult.Timings {
 		sb.WriteString(fmt.Sprintf("%s=%dms ", key, value.Milliseconds()))
