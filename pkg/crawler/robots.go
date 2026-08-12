@@ -51,7 +51,7 @@ func (c *RobotsClient) IsAllowed(ctx context.Context, urlStr string) (bool, erro
 	if result.data == nil {
 		return true, nil
 	}
-	return result.data.IsAllowed(urlStr, userAgent), nil
+	return result.data.TestAgent(urlStr, userAgent), nil
 }
 
 // CrawlDelay 返回 host 的 crawl-delay；未配置或拉取失败返回 0。
