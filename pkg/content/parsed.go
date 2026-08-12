@@ -72,5 +72,6 @@ func DefaultRegistry() *Registry {
 	registry.Register("text/plain", NewTextParser())
 	registry.Register("application/json", NewJSONParser())
 	registry.Register("text/markdown", NewMarkdownParser())
+	registry.Register("application/pdf", NewPDFParser())
 	return registry
 }
