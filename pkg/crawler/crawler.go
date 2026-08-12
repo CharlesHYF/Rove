@@ -115,6 +115,7 @@ func (c *Crawler) Run(ctx context.Context, seeds []string) (*Stats, error) {
 					stats.Failed++
 				default:
 					stats.Visited++
+					stats.Indexed++
 				}
 				mu.Unlock()
 				_ = c.sched.Complete(ctx, entry, err)
