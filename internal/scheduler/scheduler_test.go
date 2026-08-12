@@ -69,7 +69,7 @@ func TestSchedulerFailureBackoff(t *testing.T) {
 	entry := FrontierEntry{NormalizedURL: "https://a.com/1", Host: "a.com", Priority: 5, Depth: 0, DiscoveredAt: now, NextFetchAt: now, State: "queued"}
 	_, _ = frontier.Enqueue(ctx, []FrontierEntry{entry})
 
-	sched := NewScheduler(frontier, Options{HostConcurrency: 1, MaxRetries: 2})
+	sched := NewScheduler(frontier, Options{HostConcurrency: 1, MaxRetries: 1})
 	got, _ := sched.Next(ctx)
 	require.NoError(t, sched.Complete(ctx, got, errTestFetch))
 
