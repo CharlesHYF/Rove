@@ -86,7 +86,12 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:9200
+      - name: Install Chrome (browser tests)
+        run: |
+          wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
       - name: scripts/test.sh
         run: bash scripts/test.sh
         env:
           ROVE_TEST_ES_URL: http://localhost:9200
+          ROVE_BROWSER_EXECUTABLE: /usr/bin/google-chrome
