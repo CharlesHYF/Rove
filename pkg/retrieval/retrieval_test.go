@@ -106,3 +106,37 @@ func TestSearchDomainFilter(t *testing.T) {
 	require.Len(t, result.Hits, 1)
 	require.Equal(t, "da", result.Hits[0].Document.ID)
 }
+
+func TestSearchHybrid(t *testing.T) {
+
+	ctx := context.Background()
+	_, client := testSetup(t)
+	indexer := index.New(client, NewPseudoEmbedder())
+	retriever := New(client, NewPseudoEmbedder())
+
+	now := time.Now().UTC()
+	makeDoc := func(id, title, content string) *document.Document {
+		return &document.Document{
+			ID: id, URL: "https://x.com/" + id, CanonicalURL: "https://x.com/" + id, Title: title,
+			Content: content, Markdown: title, Language: "en", FetchedAt: now,
+			Source: document.Source{Domain: "x.com", Type: "web"}, ContentHash: "h" + id,
+			Chunks: []document.Chunk{{ChunkID: id + "-0", DocumentID: id, Position: 0, Content: content, TokenCount: 4, Language: "en"}},
+		}
+	}
+	docs := []*document.Document{
+		makeDoc("d1", "Browser Agents", "browser agent infrastructure for AI agents and the open web"),
+		makeDoc("d2", "Cooking", "how to cook pasta with tomatoes and basil"),
+	}
+	require.NoError(t, indexer.IndexBulk(ctx, docs))
+
+	// 混合检索：query 与 d1 语义相近
+	result, err := retriever.Search(ctx, &Query{Text: "agent web infrastructure", TopK: 5})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Hits)
+	require.Equal(t, "d1", result.Hits[0].Document.ID, "semantic match should rank first")
+	require.Contains(t, result.Hits[0].Scores, "fusion")
+	require.Contains(t, result.Hits[0].Scores, "lexical")
+	require.Contains(t, result.Hits[0].Scores, "vector")
+	require.Contains(t, result.Hits[0].Scores, "rank")
+	require.Contains(t, result.Timings, "vector_retrieve")
+}

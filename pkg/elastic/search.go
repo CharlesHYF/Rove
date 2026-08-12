@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"time"
 
 	"rove/pkg/document"
@@ -36,6 +37,42 @@ func (c *Client) SearchChunks(ctx context.Context, alias string, body []byte) ([
 	if resp.IsError() {
 		return nil, rove.NewError("retrieval.search", rove.CategoryIndex, true, "search %s status: %s", alias, resp.Status())
 	}
+	return decodeChunkHits(resp.Body)
+}
+
+// SearchChunksKNN 在 chunk 索引上执行 kNN 向量检索（dense_vector index:true + knn query）。
+func (c *Client) SearchChunksKNN(ctx context.Context, alias string, queryVector []float32, k, numCandidates int) ([]ChunkHit, error) {
+
+	body := map[string]any{
+		"size": k,
+		"knn": map[string]any{
+			"field":          "embedding",
+			"query_vector":   queryVector,
+			"k":              k,
+			"num_candidates": numCandidates,
+		},
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, rove.NewError("retrieval.knn", rove.CategoryIndex, true, "marshal knn body: %v", err)
+	}
+	resp, err := c.es.Search(
+		c.es.Search.WithContext(ctx),
+		c.es.Search.WithIndex(alias),
+		c.es.Search.WithBody(bytes.NewReader(payload)),
+	)
+	if err != nil {
+		return nil, rove.NewError("retrieval.knn", rove.CategoryIndex, true, "knn %s: %v", alias, err)
+	}
+	defer resp.Body.Close()
+	if resp.IsError() {
+		return nil, rove.NewError("retrieval.knn", rove.CategoryIndex, true, "knn %s status: %s", alias, resp.Status())
+	}
+	return decodeChunkHits(resp.Body)
+}
+
+// decodeChunkHits 解析 search 响应的 chunk 命中列表。
+func decodeChunkHits(body io.Reader) ([]ChunkHit, error) {
 
 	var payload struct {
 		Hits struct {
@@ -45,14 +82,12 @@ func (c *Client) SearchChunks(ctx context.Context, alias string, body []byte) ([
 			} `json:"hits"`
 		} `json:"hits"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(body).Decode(&payload); err != nil {
 		return nil, rove.NewError("retrieval.search", rove.CategoryIndex, true, "decode search: %v", err)
 	}
-
 	hits := make([]ChunkHit, 0, len(payload.Hits.Hits))
 	for _, hit := range payload.Hits.Hits {
-		chunk := parseChunkSource(hit.Source)
-		hits = append(hits, ChunkHit{Score: hit.Score, Chunk: chunk})
+		hits = append(hits, ChunkHit{Score: hit.Score, Chunk: parseChunkSource(hit.Source)})
 	}
 	return hits, nil
 }

@@ -1,9 +1,9 @@
 /*
- * 文件作用：BM25 检索 -- chunk 召回 -> document 聚合（最高 chunk 分）-> mget 回填文档信息 -> ranker 排序（规格书 §4.2）。
+ * 文件作用：检索 -- BM25 + 可选向量腿，RRF Fusion 后 document 聚合、回填与 heuristic 排序（规格书 §4.2 / §5.1）。
  * 创建日期：2026-08-12
  * 修改日期：2026-08-12
  */
-// Package retrieval 实现 BM25 召回与 document 级聚合。
+// Package retrieval 实现 BM25/向量召回、RRF 融合与 document 级聚合。
 package retrieval
 
 import (
@@ -33,9 +33,10 @@ type Filters struct {
 
 // Query 检索请求。
 type Query struct {
-	Text    string
-	Filters Filters
-	TopK    int
+	Text          string
+	Filters       Filters
+	TopK          int
+	IncludeVector bool // 配置了 embedder 时默认 true（由 Retriever 决定）
 }
 
 // SearchHit 一条 document 级结果。
@@ -54,26 +55,30 @@ type SearchResult struct {
 	TraceID string
 }
 
-// Retriever 执行 BM25 检索。
+// Retriever 执行 BM25 + 可选向量检索。
 type Retriever struct {
-	es     *elastic.Client
-	ranker ranking.Features
+	es       *elastic.Client
+	ranker   ranking.Features
+	embedder Embedder
 }
 
-// New 构造 Retriever。
-func New(es *elastic.Client) *Retriever {
+// New 构造 Retriever；embedders 可传 0 或 1 个（无则不启用向量腿）。
+func New(es *elastic.Client, embedders ...Embedder) *Retriever {
 
-	return &Retriever{
+	retriever := &Retriever{
 		es:     es,
 		ranker: ranking.Features{Now: time.Now()},
 	}
+	if len(embedders) > 0 {
+		retriever.embedder = embedders[0]
+	}
+	return retriever
 }
 
-// Search 执行 BM25 召回 -> 聚合 -> 排序。
+// Search 执行 BM25（+ 向量）召回 -> RRF Fusion -> document 聚合 -> 排序。
 func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error) {
 
 	timings := map[string]time.Duration{}
-	start := time.Now()
 
 	topK := q.TopK
 	if topK <= 0 {
@@ -81,18 +86,44 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 	}
 	candidateSize := topK * candidateMultiplier
 
+	// 向量腿（可选）
+	var legs []namedLeg
+	includeVector := q.IncludeVector
+	if !includeVector && r.embedder != nil {
+		includeVector = true // 配置了 embedder 默认启用
+	}
+	if includeVector && r.embedder != nil {
+		vectorStart := time.Now()
+		vectors, err := r.embedder.Embed(ctx, []string{q.Text})
+		if err != nil {
+			return nil, err
+		}
+		knnHits, err := r.es.SearchChunksKNN(ctx, r.es.ChunksAlias(), vectors[0], candidateSize, topK*10)
+		if err != nil {
+			return nil, err
+		}
+		timings["vector_retrieve"] = time.Since(vectorStart)
+		legs = append(legs, namedLeg{Name: "vector", Hits: knnHits})
+	}
+
+	// BM25 腿
+	lexicalStart := time.Now()
 	body, err := buildSearchBody(q, candidateSize)
 	if err != nil {
 		return nil, err
 	}
-	hits, err := r.es.SearchChunks(ctx, r.es.ChunksAlias(), body)
+	lexicalHits, err := r.es.SearchChunks(ctx, r.es.ChunksAlias(), body)
 	if err != nil {
 		return nil, err
 	}
-	timings["lexical_retrieve"] = time.Since(start)
+	timings["lexical_retrieve"] = time.Since(lexicalStart)
+	legs = append(legs, namedLeg{Name: "lexical", Hits: lexicalHits})
 
-	// chunk 按 document_id 聚合，保留最高分
-	grouped := r.aggregate(hits)
+	// RRF Fusion
+	fused := rrfMerge(legs, rankConstant)
+
+	// 按 document_id 聚合（保留最高 fusion chunk）
+	grouped := r.aggregateFused(fused)
 
 	// mget 回填文档信息
 	docs, err := r.es.MGetDocuments(ctx, r.es.DocumentsAlias(), grouped.ids())
@@ -102,7 +133,7 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 
 	// 排序
 	rankStart := time.Now()
-	result := r.rank(q, grouped, docs, topK)
+	result := r.rankFused(q, grouped, docs, topK)
 	timings["rank"] = time.Since(rankStart)
 
 	return &SearchResult{
@@ -113,19 +144,13 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 	}, nil
 }
 
-// chunkHit 是 ES chunk 命中。
-type chunkHit struct {
-	Score float64
-	Chunk document.Chunk
-}
-
-// groupedHits 按 document 聚合后的候选。
-type groupedHits struct {
-	byDoc map[string]chunkHit // document_id -> 最高分 chunk
+// fusedGrouped 按 document 聚合后的候选。
+type fusedGrouped struct {
+	byDoc map[string]fusedChunk // document_id -> 最高 fusion chunk
 }
 
 // ids 返回全部 document_id。
-func (g *groupedHits) ids() []string {
+func (g *fusedGrouped) ids() []string {
 
 	ids := make([]string, 0, len(g.byDoc))
 	for id := range g.byDoc {
@@ -134,41 +159,43 @@ func (g *groupedHits) ids() []string {
 	return ids
 }
 
-// aggregate 将 chunk 命中按 document_id 聚合，保留每文档最高分 chunk。
-func (r *Retriever) aggregate(rawHits []elastic.ChunkHit) *groupedHits {
+// aggregateFused 按 document_id 聚合，保留每文档最高 fusion chunk。
+func (r *Retriever) aggregateFused(fused []fusedChunk) *fusedGrouped {
 
-	grouped := &groupedHits{byDoc: map[string]chunkHit{}}
-	for _, hit := range rawHits {
-		existing, ok := grouped.byDoc[hit.Chunk.DocumentID]
-		if !ok || hit.Score > existing.Score {
-			grouped.byDoc[hit.Chunk.DocumentID] = chunkHit{Score: hit.Score, Chunk: hit.Chunk}
+	grouped := &fusedGrouped{byDoc: map[string]fusedChunk{}}
+	for _, fc := range fused {
+		existing, ok := grouped.byDoc[fc.Chunk.DocumentID]
+		if !ok || fc.Fusion > existing.Fusion {
+			grouped.byDoc[fc.Chunk.DocumentID] = fc
 		}
 	}
 	return grouped
 }
 
-// rank 回填文档信息并应用 ranker。
-func (r *Retriever) rank(q *Query, grouped *groupedHits, docs map[string]*document.Document, topK int) []SearchHit {
+// rankFused 回填文档信息并应用 ranker（base = fusion 分）。
+func (r *Retriever) rankFused(q *Query, grouped *fusedGrouped, docs map[string]*document.Document, topK int) []SearchHit {
 
 	var result []SearchHit
-	for documentID, hit := range grouped.byDoc {
+	for documentID, fc := range grouped.byDoc {
 		doc := docs[documentID]
 		if doc == nil {
 			continue
 		}
-		score, features := r.ranker.Score(hit.Score, doc, q.Filters.Language)
-		scores := map[string]float64{"lexical": hit.Score, "rank": score}
+		score, features := r.ranker.Score(fc.Fusion, doc, q.Filters.Language)
+		scores := map[string]float64{"fusion": fc.Fusion, "rank": score}
+		for leg, legScore := range fc.LegScores {
+			scores[leg] = legScore
+		}
 		for feature, value := range features {
 			scores[feature] = value
 		}
 		result = append(result, SearchHit{
-			Chunk:    hit.Chunk,
+			Chunk:    fc.Chunk,
 			Document: doc,
 			Score:    score,
 			Scores:   scores,
 		})
 	}
-	// 按最终分数降序，截断 topK
 	sort.Slice(result, func(i, j int) bool { return result[i].Score > result[j].Score })
 	if len(result) > topK {
 		result = result[:topK]
