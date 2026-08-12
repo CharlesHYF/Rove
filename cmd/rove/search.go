@@ -1,0 +1,86 @@
+/*
+ * 文件作用：rove search 子命令 -- 从自有 ES 索引执行 BM25 检索（规格书 §9 A3 验收）。
+ * 创建日期：2026-08-12
+ * 修改日期：2026-08-12
+ */
+package main
+
+import (
+	"encoding/json"
+
+	"github.com/spf13/cobra"
+
+	"rove/internal/app"
+	"rove/internal/config"
+	"rove/pkg/elastic"
+	"rove/pkg/retrieval"
+	"rove/protocol"
+)
+
+var searchFlags struct {
+	topK     int
+	domain   string
+	language string
+	json     bool
+}
+
+// searchCmd 实现 rove search <query>。
+var searchCmd = &cobra.Command{
+	Use:   "search <query>",
+	Short: "从自有 ES 索引检索（BM25）",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runSearch,
+}
+
+// init 注册 search 命令参数。
+func init() {
+
+	searchCmd.Flags().IntVar(&searchFlags.topK, "top-k", 0, "返回条数（默认配置 search.top_k）")
+	searchCmd.Flags().StringVar(&searchFlags.domain, "domain", "", "按域名过滤")
+	searchCmd.Flags().StringVar(&searchFlags.language, "language", "", "按语言过滤（如 en/zh）")
+	searchCmd.Flags().BoolVar(&searchFlags.json, "json", false, "以 JSON 输出")
+}
+
+// runSearch 执行检索。
+func runSearch(cmd *cobra.Command, args []string) error {
+
+	cfg, err := config.Load("")
+	if err != nil {
+		return err
+	}
+	client, err := elastic.New(cfg.ES.URL, cfg.ES.Username, cfg.ES.Password, cfg.Index.Prefix)
+	if err != nil {
+		return err
+	}
+
+	topK := searchFlags.topK
+	if topK <= 0 {
+		topK = cfg.Search.TopK
+	}
+	query := &retrieval.Query{
+		Text: args[0],
+		TopK: topK,
+		Filters: retrieval.Filters{
+			Domain:   searchFlags.domain,
+			Language: searchFlags.language,
+		},
+	}
+	result, err := app.NewSearch(retrieval.New(client)).Search(cmd.Context(), query)
+	if err != nil {
+		return err
+	}
+
+	if searchFlags.json {
+		encoder := json.NewEncoder(cmd.OutOrStdout())
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(protocol.FromSearchResult(result))
+	}
+
+	cmd.Printf("query: %s (trace %s)\n", result.Query, result.TraceID)
+	for rank, hit := range result.Hits {
+		cmd.Printf("%d. %s  [%.3f]\n", rank+1, hit.Document.Title, hit.Score)
+		cmd.Printf("   %s\n", hit.Document.URL)
+		cmd.Printf("   %s\n", hit.Chunk.Content)
+	}
+	return nil
+}

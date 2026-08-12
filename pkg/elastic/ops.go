@@ -122,6 +122,20 @@ func (c *Client) StoreSize(ctx context.Context, alias string) (int64, error) {
 	return total, nil
 }
 
+// DeleteIndex 删除索引（alias 指向的物理索引一并删除）。
+func (c *Client) DeleteIndex(ctx context.Context, alias string) error {
+
+	resp, err := c.es.Indices.Delete([]string{alias}, c.es.Indices.Delete.WithContext(ctx))
+	if err != nil {
+		return rove.NewError("es.delete_index", rove.CategoryIndex, true, "delete index %s: %v", alias, err)
+	}
+	defer resp.Body.Close()
+	if resp.IsError() {
+		return rove.NewError("es.delete_index", rove.CategoryIndex, true, "delete index %s status: %s", alias, resp.Status())
+	}
+	return nil
+}
+
 // Response 是 ES 响应的精简封装。
 type Response struct {
 	StatusCode int

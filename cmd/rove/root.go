@@ -23,4 +23,6 @@ var rootCmd = &cobra.Command{
 func init() {
 
 	rootCmd.AddCommand(fetchCmd)
+	rootCmd.AddCommand(searchCmd)
+	rootCmd.AddCommand(indexCmd)
 }
