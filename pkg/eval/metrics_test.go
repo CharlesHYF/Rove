@@ -14,7 +14,7 @@ import (
 func TestRecallAtK(t *testing.T) {
 
 	relevant := map[string]bool{"a": true, "b": true, "c": true}
-	require.Equal(t, 1.0, RecallAtK(relevant, []string{"a", "b"}, 2))
+	require.InDelta(t, 2.0/3.0, RecallAtK(relevant, []string{"a", "b"}, 2), 0.0001, "recall@2 against 3 relevant is 2/3")
 	require.InDelta(t, 2.0/3.0, RecallAtK(relevant, []string{"a", "b", "x"}, 3), 0.0001)
 	require.Equal(t, 0.0, RecallAtK(relevant, []string{"x", "y"}, 2))
 }
