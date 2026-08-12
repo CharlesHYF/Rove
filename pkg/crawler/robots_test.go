@@ -40,7 +40,7 @@ func TestRobotsIsAllowed(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, allowed, "disallowed path must be blocked")
 
-	delay, err := client.CrawlDelay(ctx, hostOf(ts.URL))
+	delay, err := client.CrawlDelay(ctx, ts.URL)
 	require.NoError(t, err)
 	require.Equal(t, 2*time.Second, delay)
 }

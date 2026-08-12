@@ -40,54 +40,61 @@ func NewRobotsClient(fetcher *fetch.HTTPFetcher) *RobotsClient {
 // IsAllowed 判断 URL 是否被 robots.txt 允许；无 robots.txt 或拉取失败时 fail-open。
 func (c *RobotsClient) IsAllowed(ctx context.Context, urlStr string) (bool, error) {
 
-	host := hostOf(urlStr)
-	if host == "" {
+	u, err := url.Parse(urlStr)
+	if err != nil || u.Host == "" {
 		return false, nil
 	}
-	result, err := c.load(ctx, host)
-	if err != nil {
+	result, err := c.load(ctx, robotsKey(u))
+	if err != nil || result.data == nil {
 		return true, nil // fail-open
 	}
-	if result.data == nil {
-		return true, nil
-	}
-	return result.data.TestAgent(urlStr, userAgent), nil
+	return result.data.TestAgent(u.Path, userAgent), nil
 }
 
-// CrawlDelay 返回 host 的 crawl-delay；未配置或拉取失败返回 0。
-func (c *RobotsClient) CrawlDelay(ctx context.Context, host string) (time.Duration, error) {
+// CrawlDelay 返回页面所在 host 的 crawl-delay；未配置或拉取失败返回 0。
+func (c *RobotsClient) CrawlDelay(ctx context.Context, pageURL string) (time.Duration, error) {
 
-	result, err := c.load(ctx, host)
+	u, err := url.Parse(pageURL)
+	if err != nil || u.Host == "" {
+		return 0, nil
+	}
+	result, err := c.load(ctx, robotsKey(u))
 	if err != nil {
 		return 0, nil
 	}
 	return result.crawlDelay, nil
 }
 
-// load 拉取并缓存 host 的 robots.txt。
-func (c *RobotsClient) load(ctx context.Context, host string) (robotsResult, error) {
+// load 拉取并缓存 robots.txt（缓存键 = scheme://host，与页面同 scheme）。
+func (c *RobotsClient) load(ctx context.Context, key string) (robotsResult, error) {
 
-	if result, ok := c.cache[host]; ok {
+	if result, ok := c.cache[key]; ok {
 		return result, nil
 	}
 	result := robotsResult{}
-	robotsURL := "https://" + host + "/robots.txt"
+	robotsURL := key + "/robots.txt"
 	raw, err := c.fetcher.Fetch(ctx, &fetch.Request{URL: robotsURL, Mode: fetch.ModeHTTP})
 	if err != nil {
-		c.cache[host] = result
+		c.cache[key] = result
 		return result, nil
 	}
 	data, err := robotstxt.FromBytes(raw.Body)
 	if err != nil {
-		c.cache[host] = result
+		c.cache[key] = result
 		return result, nil
 	}
 	result.data = data
 	if group := data.FindGroup(userAgent); group != nil {
 		result.crawlDelay = group.CrawlDelay
 	}
-	c.cache[host] = result
+	c.cache[key] = result
 	return result, nil
+}
+
+// robotsKey 生成缓存键：scheme://host（小写）。
+func robotsKey(u *url.URL) string {
+
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Hostname())
 }
 
 // hostOf 提取 URL 的 hostname（小写）。
