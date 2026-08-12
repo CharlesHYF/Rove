@@ -95,6 +95,47 @@ func (m *Manager) Fetch(ctx context.Context, urlStr string) (*document.RawDocume
 	}, nil
 }
 
+// Browse 渲染页面并构建 PageState（交互元素带稳定 DOM 路径 id）。
+func (m *Manager) Browse(ctx context.Context, urlStr string) (*PageState, error) {
+
+	browserCtx, cancel := chromedp.NewContext(m.allocCtx)
+	defer cancel()
+
+	pageCtx, cancelTimeout := context.WithTimeout(browserCtx, m.opts.Timeout)
+	defer cancelTimeout()
+
+	var state PageState
+	var raw struct {
+		Text        string   `json:"text"`
+		Links       []string `json:"links"`
+		Interactive []struct {
+			ID   string `json:"id"`
+			Tag  string `json:"tag"`
+			Text string `json:"text"`
+			Type string `json:"type"`
+			Href string `json:"href"`
+		} `json:"interactive"`
+	}
+	actions := []chromedp.Action{
+		chromedp.Navigate(urlStr),
+		chromedp.WaitReady("html", chromedp.ByQuery),
+		chromedp.Evaluate(pageStateJS, &raw),
+		chromedp.Location(&state.URL),
+		chromedp.Title(&state.Title),
+	}
+	if err := chromedp.Run(pageCtx, actions...); err != nil {
+		return nil, rove.NewError("browser.navigation", rove.CategoryBrowser, true, "browse %s: %v", urlStr, err)
+	}
+	state.Text = raw.Text
+	state.Links = raw.Links
+	for _, element := range raw.Interactive {
+		state.Interactive = append(state.Interactive, InteractiveElement{
+			ID: element.ID, Tag: element.Tag, Text: element.Text, Type: element.Type, Href: element.Href,
+		})
+	}
+	return &state, nil
+}
+
 // DiscoverExecutable 按优先级发现浏览器可执行文件：显式路径 -> 常见路径 -> PATH 搜索。
 func DiscoverExecutable(explicit string) (string, error) {
 
