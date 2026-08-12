@@ -44,5 +44,5 @@ func TestNormalizeURL(t *testing.T) {
 
 	normalized, err := NormalizeURL("HTTPS://Example.com/A/?utm_source=x#frag")
 	require.NoError(t, err)
-	require.Equal(t, "https://example.com/a", normalized)
+	require.Equal(t, "https://example.com/A", normalized, "path case is preserved, scheme/host lowercased, tracking/fragment stripped")
 }
