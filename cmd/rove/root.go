@@ -25,4 +25,5 @@ func init() {
 	rootCmd.AddCommand(fetchCmd)
 	rootCmd.AddCommand(searchCmd)
 	rootCmd.AddCommand(indexCmd)
+	rootCmd.AddCommand(crawlCmd)
 }

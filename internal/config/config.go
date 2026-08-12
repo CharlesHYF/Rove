@@ -60,11 +60,13 @@ type ChunkConfig struct {
 	Overlap   int `yaml:"overlap"`
 }
 
-// CrawlConfig 爬虫相关配置（M4 使用）。
+// CrawlConfig 爬虫相关配置。
 type CrawlConfig struct {
 	MaxPages        int      `yaml:"max_pages"`
 	MaxDepth        int      `yaml:"max_depth"`
 	DomainAllowlist []string `yaml:"domain_allowlist"`
+	Workers         int      `yaml:"workers"`
+	StateDB         string   `yaml:"state_db"`
 }
 
 // ESConfig Elasticsearch 配置（M2 使用）。
@@ -108,7 +110,7 @@ func Default() *Config {
 			AllowPrivate: false,
 		},
 		Chunk:    ChunkConfig{MaxTokens: 800, Overlap: 100},
-		Crawl:    CrawlConfig{MaxPages: 1000, MaxDepth: 3},
+		Crawl:    CrawlConfig{MaxPages: 1000, MaxDepth: 3, Workers: 2, StateDB: "rove.db"},
 		ES:       ESConfig{URL: "http://localhost:9200"},
 		Robots:   RobotsConfig{Enabled: true},
 		Embedder: EmbedderConfig{Type: "pseudo"},
@@ -146,6 +148,8 @@ func applyEnv(c *Config) {
 	applyInt(&c.Chunk.Overlap, "ROVE_CHUNK_OVERLAP")
 	applyInt(&c.Crawl.MaxPages, "ROVE_CRAWL_MAX_PAGES")
 	applyInt(&c.Crawl.MaxDepth, "ROVE_CRAWL_MAX_DEPTH")
+	applyInt(&c.Crawl.Workers, "ROVE_CRAWL_WORKERS")
+	applyString(&c.Crawl.StateDB, "ROVE_CRAWL_STATE_DB")
 	applyInt(&c.Search.TopK, "ROVE_SEARCH_TOP_K")
 	applyInt(&c.Index.EmbeddingDim, "ROVE_INDEX_EMBEDDING_DIM")
 	applyString(&c.Index.Prefix, "ROVE_INDEX_PREFIX")
@@ -202,6 +206,15 @@ func validate(c *Config) error {
 	}
 	if c.Chunk.Overlap < 0 {
 		return rove.NewError("config.invalid", rove.CategoryContent, false, "chunk.overlap must be >= 0")
+	}
+	if c.Crawl.MaxPages <= 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "crawl.max_pages must be > 0")
+	}
+	if c.Crawl.MaxDepth < 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "crawl.max_depth must be >= 0")
+	}
+	if c.Crawl.Workers <= 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "crawl.workers must be > 0")
 	}
 	if c.Search.TopK <= 0 {
 		return rove.NewError("config.invalid", rove.CategoryContent, false, "search.top_k must be > 0")

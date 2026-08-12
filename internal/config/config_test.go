@@ -78,6 +78,8 @@ func TestEnvFullMapping(t *testing.T) {
 	t.Setenv("ROVE_SEARCH_TOP_K", "20")
 	t.Setenv("ROVE_INDEX_EMBEDDING_DIM", "512")
 	t.Setenv("ROVE_INDEX_PREFIX", "rove-dev")
+	t.Setenv("ROVE_CRAWL_WORKERS", "4")
+	t.Setenv("ROVE_CRAWL_STATE_DB", "tmp.db")
 
 	c, err := Load("")
 	require.NoError(t, err)
@@ -96,4 +98,6 @@ func TestEnvFullMapping(t *testing.T) {
 	require.Equal(t, 20, c.Search.TopK)
 	require.Equal(t, 512, c.Index.EmbeddingDim)
 	require.Equal(t, "rove-dev", c.Index.Prefix)
+	require.Equal(t, 4, c.Crawl.Workers)
+	require.Equal(t, "tmp.db", c.Crawl.StateDB)
 }
