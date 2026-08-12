@@ -35,6 +35,9 @@ func (p *Policy) CandidateLinks(baseURL string, parsed *content.ParsedContent) (
 		if resolved == "" {
 			continue
 		}
+		if resolved == baseURL {
+			continue // 自链接/纯片段，跳过
+		}
 		host := resolvedHost(resolved)
 		if p.SameHostOnly && !strings.EqualFold(host, baseHost) {
 			continue
@@ -64,7 +67,11 @@ func (p *Policy) AllowedDomain(host string) bool {
 // resolveLink 解析相对/绝对链接，过滤非法 scheme 与片段，规范化后返回。
 func resolveLink(base *url.URL, rawLink string) string {
 
-	ref, err := url.Parse(strings.TrimSpace(rawLink))
+	rawLink = strings.TrimSpace(rawLink)
+	if strings.HasPrefix(rawLink, "#") {
+		return "" // 纯片段链接无抓取价值
+	}
+	ref, err := url.Parse(rawLink)
 	if err != nil {
 		return ""
 	}
