@@ -98,6 +98,10 @@ check_file_header() {
 			continue
 		fi
 
+		if [[ "${file}" =~ /testdata/ ]]; then
+			continue # 测试夹具非源码，不要求文件头
+		fi
+
 		if [ ! -f "${file}" ]; then
 			continue
 		fi
