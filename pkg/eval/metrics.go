@@ -41,18 +41,14 @@ func NDCGAtK(relevant map[string]bool, ranked []string, k int) float64 {
 			dcg += 1.0 / math.Log2(float64(index+2))
 		}
 	}
-	// IDCG：全部相关时的理想 DCG
-	idealRanked := make([]string, 0, len(ranked))
-	for _, doc := range ranked {
-		idealRanked = append(idealRanked, doc)
-	}
+	// IDCG：理想顺序（相关文档置于最前），取 min(k, 相关总数) 个位置
 	idcg := 0.0
-	relevantCount := 0
-	for index := 0; index < len(idealRanked) && relevantCount < len(relevant); index++ {
-		if relevant[idealRanked[index]] {
-			idcg += 1.0 / math.Log2(float64(index+2))
-			relevantCount++
-		}
+	idealCount := k
+	if idealCount > len(relevant) {
+		idealCount = len(relevant)
+	}
+	for index := 0; index < idealCount; index++ {
+		idcg += 1.0 / math.Log2(float64(index+2))
 	}
 	if idcg == 0 {
 		return 0
