@@ -12,8 +12,19 @@ Crawl. Browse. Index. Retrieve. Rank. Evidence.
 - [x] M2 ES 索引 + BM25
 - [x] M3 Vector + Hybrid + Evidence
 - [x] M4 Crawler
-- [x] M5 Browser Escalation（当前）
-- [ ] M6 TUI + 收尾
+- [x] M5 Browser Escalation
+- [x] M6 TUI + 收尾（当前）
+
+## 命令
+
+```bash
+rove                      # 进入五视图 TUI
+rove fetch <url> [--mode auto|http|browser]
+rove search <query> [--json]
+rove crawl <seed> [--max-pages N] [--max-depth D]
+rove browse <url>
+rove index init|status|stats|rebuild
+```
 - [ ] M5 Browser Escalation
 - [ ] M6 TUI + 收尾验收
 
