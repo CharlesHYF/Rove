@@ -57,13 +57,3 @@ func TestRobotsMissingFile(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed, "missing robots.txt must fail-open")
 }
-
-// hostOf 提取 URL 的 hostname。
-func hostOf(urlStr string) string {
-
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return ""
-	}
-	return strings.ToLower(u.Hostname())
-}
