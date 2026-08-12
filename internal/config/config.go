@@ -41,6 +41,8 @@ type Config struct {
 	ES       ESConfig       `yaml:"es"`
 	Robots   RobotsConfig   `yaml:"robots"`
 	Embedder EmbedderConfig `yaml:"embedder"`
+	Search   SearchConfig   `yaml:"search"`
+	Index    IndexConfig    `yaml:"index"`
 }
 
 // FetchConfig 抓取相关配置。
@@ -83,6 +85,17 @@ type EmbedderConfig struct {
 	Endpoint string `yaml:"endpoint"`
 }
 
+// SearchConfig 检索相关配置（M2 起生效）。
+type SearchConfig struct {
+	TopK int `yaml:"top_k"`
+}
+
+// IndexConfig 索引相关配置。
+type IndexConfig struct {
+	EmbeddingDim int    `yaml:"embedding_dim"`
+	Prefix       string `yaml:"prefix"`
+}
+
 // Default 返回全部默认值。
 func Default() *Config {
 
@@ -99,6 +112,8 @@ func Default() *Config {
 		ES:       ESConfig{URL: "http://localhost:9200"},
 		Robots:   RobotsConfig{Enabled: true},
 		Embedder: EmbedderConfig{Type: "pseudo"},
+		Search:   SearchConfig{TopK: 10},
+		Index:    IndexConfig{EmbeddingDim: 256, Prefix: "rove"},
 	}
 }
 
@@ -122,16 +137,51 @@ func Load(path string) (*Config, error) {
 	return c, nil
 }
 
-// applyEnv 应用 ROVE_ 前缀环境变量（M1 支持子集，M2 补齐全量映射）。
+// applyEnv 应用 ROVE_ 前缀环境变量（规格书 §4.1 全量映射）。
 func applyEnv(c *Config) {
 
-	if value := os.Getenv("ROVE_ALLOW_PRIVATE"); value != "" {
+	applyBool(&c.Fetch.AllowPrivate, "ROVE_ALLOW_PRIVATE")
+	applyInt(&c.Fetch.MaxRedirects, "ROVE_FETCH_MAX_REDIRECTS")
+	applyInt(&c.Chunk.MaxTokens, "ROVE_CHUNK_MAX_TOKENS")
+	applyInt(&c.Chunk.Overlap, "ROVE_CHUNK_OVERLAP")
+	applyInt(&c.Crawl.MaxPages, "ROVE_CRAWL_MAX_PAGES")
+	applyInt(&c.Crawl.MaxDepth, "ROVE_CRAWL_MAX_DEPTH")
+	applyInt(&c.Search.TopK, "ROVE_SEARCH_TOP_K")
+	applyInt(&c.Index.EmbeddingDim, "ROVE_INDEX_EMBEDDING_DIM")
+	applyString(&c.Index.Prefix, "ROVE_INDEX_PREFIX")
+	applyString(&c.ES.URL, "ROVE_ES_URL")
+	applyString(&c.ES.Username, "ROVE_ES_USERNAME")
+	applyString(&c.ES.Password, "ROVE_ES_PASSWORD")
+	applyString(&c.Embedder.Type, "ROVE_EMBEDDER_TYPE")
+	applyString(&c.Embedder.Endpoint, "ROVE_EMBEDDER_ENDPOINT")
+	applyBool(&c.Robots.Enabled, "ROVE_ROBOTS_ENABLED")
+}
+
+// applyBool 应用布尔环境变量。
+func applyBool(target *bool, key string) {
+
+	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {
-			c.Fetch.AllowPrivate = parsed
+			*target = parsed
 		}
 	}
-	if value := os.Getenv("ROVE_ES_URL"); value != "" {
-		c.ES.URL = value
+}
+
+// applyInt 应用整数环境变量。
+func applyInt(target *int, key string) {
+
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			*target = parsed
+		}
+	}
+}
+
+// applyString 应用字符串环境变量。
+func applyString(target *string, key string) {
+
+	if value := os.Getenv(key); value != "" {
+		*target = value
 	}
 }
 
@@ -152,6 +202,12 @@ func validate(c *Config) error {
 	}
 	if c.Chunk.Overlap < 0 {
 		return rove.NewError("config.invalid", rove.CategoryContent, false, "chunk.overlap must be >= 0")
+	}
+	if c.Search.TopK <= 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "search.top_k must be > 0")
+	}
+	if c.Index.EmbeddingDim <= 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "index.embedding_dim must be > 0")
 	}
 	return nil
 }

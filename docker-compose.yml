@@ -1,0 +1,21 @@
+# Rove 本地依赖 -- 当前仅 Elasticsearch（M2 起使用）
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: rove-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health?wait_for_status=yellow >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    volumes:
+      - rove-es-data:/usr/share/elasticsearch/data
+
+volumes:
+  rove-es-data:
