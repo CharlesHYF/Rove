@@ -12,11 +12,14 @@ import (
 // version 在发布时通过 ldflags 注入。
 var version = "0.1.0"
 
-// rootCmd 是全部子命令的根。
+// rootCmd 是全部子命令的根；无子命令时进入 TUI。
 var rootCmd = &cobra.Command{
 	Use:     "rove",
 	Short:   "Rove -- open web infrastructure for AI agents",
 	Version: version,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runTUI()
+	},
 }
 
 // init 注册全部子命令。
