@@ -75,7 +75,7 @@ func runCrawl(cmd *cobra.Command, args []string) error {
 	fetcher := fetch.NewHTTP(fetch.Options{AllowPrivate: cfg.Fetch.AllowPrivate})
 	registry := content.DefaultRegistry()
 	pipeline := content.NewPipeline(registry, &content.Canonicalizer{}, content.NewDeduper(), content.NewChunker(cfg.Chunk.MaxTokens, cfg.Chunk.Overlap))
-	indexer := index.New(client, retrieval.NewPseudoEmbedder())
+	indexer := index.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim))
 
 	workers := crawlFlags.workers
 	if workers <= 0 {

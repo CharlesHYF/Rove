@@ -122,10 +122,17 @@ func (c *Client) StoreSize(ctx context.Context, alias string) (int64, error) {
 	return total, nil
 }
 
-// DeleteIndex 删除索引（alias 指向的物理索引一并删除）。
+// DeleteIndex 删除索引：先解析 alias 到物理索引再删除（ES 不允许直接 DELETE alias）。
 func (c *Client) DeleteIndex(ctx context.Context, alias string) error {
 
-	resp, err := c.es.Indices.Delete([]string{alias}, c.es.Indices.Delete.WithContext(ctx))
+	indices, err := c.resolveAlias(ctx, alias)
+	if err != nil {
+		return err
+	}
+	if len(indices) == 0 {
+		return nil
+	}
+	resp, err := c.es.Indices.Delete(indices, c.es.Indices.Delete.WithContext(ctx))
 	if err != nil {
 		return rove.NewError("es.delete_index", rove.CategoryIndex, true, "delete index %s: %v", alias, err)
 	}

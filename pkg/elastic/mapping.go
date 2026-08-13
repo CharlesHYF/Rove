@@ -55,6 +55,10 @@ func chunksMapping(embeddingDim int) map[string]any {
 			"number_of_replicas": 0,
 		},
 		"mappings": map[string]any{
+			// embedding 仅用于 HNSW 向量检索，不落入 _source：避免存储翻倍与每次检索回传全量向量。
+			"_source": map[string]any{
+				"excludes": []string{"embedding"},
+			},
 			"properties": map[string]any{
 				"chunk_id":     map[string]any{"type": "keyword"},
 				"document_id":  map[string]any{"type": "keyword"},
@@ -122,16 +126,35 @@ func (c *Client) ensureIndex(ctx context.Context, alias string, mapping map[stri
 // ExistsAlias 判断 alias 是否存在（404 视为不存在）。
 func (c *Client) ExistsAlias(ctx context.Context, alias string) (bool, error) {
 
+	indices, err := c.resolveAlias(ctx, alias)
+	if err != nil {
+		return false, err
+	}
+	return len(indices) > 0, nil
+}
+
+// resolveAlias 返回 alias 指向的物理索引名列表（404 视为空；ES 不接受直接 DELETE alias，需先解析）。
+func (c *Client) resolveAlias(ctx context.Context, alias string) ([]string, error) {
+
 	resp, err := c.es.Indices.GetAlias(c.es.Indices.GetAlias.WithContext(ctx), c.es.Indices.GetAlias.WithName(alias))
 	if err != nil {
-		return false, rove.NewError("es.get_alias", rove.CategoryIndex, true, "get alias %s: %v", alias, err)
+		return nil, rove.NewError("es.get_alias", rove.CategoryIndex, true, "get alias %s: %v", alias, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 {
-		return false, nil
+		return nil, nil
 	}
 	if resp.IsError() {
-		return false, rove.NewError("es.get_alias", rove.CategoryIndex, true, "get alias %s status: %s", alias, resp.Status())
+		return nil, rove.NewError("es.get_alias", rove.CategoryIndex, true, "get alias %s status: %s", alias, resp.Status())
 	}
-	return true, nil
+	// GET _alias/<name> 返回 { "<物理索引>": { "aliases": {...} } }，键即物理索引名。
+	var payload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, rove.NewError("es.get_alias", rove.CategoryIndex, true, "decode get alias %s: %v", alias, err)
+	}
+	indices := make([]string, 0, len(payload))
+	for name := range payload {
+		indices = append(indices, name)
+	}
+	return indices, nil
 }

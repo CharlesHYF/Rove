@@ -53,3 +53,20 @@ func TestPseudoEmbedderEmptyText(t *testing.T) {
 	require.Len(t, vectors, 1)
 	require.Len(t, vectors[0], 256, "empty text must still yield a 256-dim vector")
 }
+
+func TestPseudoEmbedderCustomDim(t *testing.T) {
+
+	ctx := context.Background()
+	embedder := NewPseudoEmbedder(128)
+	require.Equal(t, 128, embedder.Dim())
+
+	vectors, err := embedder.Embed(ctx, []string{"browser agent", "browser agent"})
+	require.NoError(t, err)
+	require.Len(t, vectors, 2)
+	require.Len(t, vectors[0], 128, "custom dim must produce 128-dim vectors")
+	require.Equal(t, vectors[0], vectors[1], "same text must produce identical vector for custom dim")
+
+	// 缺省 / 非法维度回退到默认 256
+	require.Equal(t, 256, NewPseudoEmbedder().Dim())
+	require.Equal(t, 256, NewPseudoEmbedder(0).Dim())
+}

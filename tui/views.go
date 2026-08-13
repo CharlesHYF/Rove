@@ -38,6 +38,9 @@ func renderSearch(m *Model) string {
 
 	var sb strings.Builder
 	sb.WriteString("query> " + m.searchQuery + "\n\n")
+	if m.searchErr != "" {
+		sb.WriteString("error: " + m.searchErr + "\n\n")
+	}
 	if m.searchResult == nil {
 		sb.WriteString("(输入查询后回车执行；Tab 切换视图)\n")
 		return sb.String()

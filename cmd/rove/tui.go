@@ -31,8 +31,8 @@ func runTUI() error {
 	bus := runtime.NewBus(200)
 	defer bus.Close()
 
-	indexService := app.NewIndex(index.New(client, retrieval.NewPseudoEmbedder()), bus)
-	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder()), bus)
+	indexService := app.NewIndex(index.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim)), bus)
+	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim)), bus)
 	inspector := app.NewInspector(bus, indexService)
 
 	program := tea.NewProgram(tui.New(searchService, indexService, inspector))

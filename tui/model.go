@@ -27,6 +27,7 @@ type Model struct {
 	tab          int
 	searchQuery  string
 	searchResult *retrieval.SearchResult
+	searchErr    string
 	indexStatus  string
 	events       []runtime.Event
 	search       *app.SearchService
@@ -86,6 +87,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tab = (m.tab + 1) % len(viewTitles)
 		case tea.KeyEnter:
 			if m.tab == 0 && m.searchQuery != "" {
+				m.searchErr = ""
 				return m, m.runSearch()
 			}
 		case tea.KeyRunes:
@@ -104,8 +106,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchMsg:
 		if message.err != nil {
 			m.searchResult = nil
+			m.searchErr = message.err.Error()
 		} else {
 			m.searchResult = message.result
+			m.searchErr = ""
 		}
 	case string:
 		m.indexStatus = message

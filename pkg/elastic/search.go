@@ -10,7 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"time"
+
+	"github.com/elastic/go-elasticsearch/v8/esapi"
 
 	"rove/pkg/document"
 	"rove/pkg/rove"
@@ -35,7 +38,7 @@ func (c *Client) SearchChunks(ctx context.Context, alias string, body []byte) ([
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		return nil, rove.NewError("retrieval.search", rove.CategoryIndex, true, "search %s status: %s", alias, resp.Status())
+		return nil, rove.NewError("retrieval.search", rove.CategoryIndex, true, "search %s status: %s: %s", alias, resp.Status(), readErrorBody(resp))
 	}
 	return decodeChunkHits(resp.Body)
 }
@@ -66,7 +69,7 @@ func (c *Client) SearchChunksKNN(ctx context.Context, alias string, queryVector 
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		return nil, rove.NewError("retrieval.knn", rove.CategoryIndex, true, "knn %s status: %s", alias, resp.Status())
+		return nil, rove.NewError("retrieval.knn", rove.CategoryIndex, true, "knn %s status: %s: %s", alias, resp.Status(), readErrorBody(resp))
 	}
 	return decodeChunkHits(resp.Body)
 }
@@ -90,6 +93,16 @@ func decodeChunkHits(body io.Reader) ([]ChunkHit, error) {
 		hits = append(hits, ChunkHit{Score: hit.Score, Chunk: parseChunkSource(hit.Source)})
 	}
 	return hits, nil
+}
+
+// readErrorBody 读取 ES 错误响应体（截断到 512 字节），把根因（如向量维度不匹配）暴露到错误信息里。
+func readErrorBody(resp *esapi.Response) string {
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // MGetDocuments 按 id 批量取文档，返回 document_id -> Document。

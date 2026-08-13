@@ -65,7 +65,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Language: searchFlags.language,
 		},
 	}
-	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder()))
+	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim)))
 	result, err := searchService.Search(cmd.Context(), query)
 	if err != nil {
 		return err
