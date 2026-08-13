@@ -138,7 +138,7 @@ func (c *Client) DeleteIndex(ctx context.Context, alias string) error {
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		return rove.NewError("es.delete_index", rove.CategoryIndex, true, "delete index %s status: %s", alias, resp.Status())
+		return rove.NewError("es.delete_index", rove.CategoryIndex, true, "delete index %s status: %s: %s", alias, resp.Status(), readErrorBody(resp))
 	}
 	return nil
 }
