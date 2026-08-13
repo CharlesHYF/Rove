@@ -1,7 +1,7 @@
 /*
  * 文件作用：SQLite FrontierStore -- URL 去重、入队、状态流转（规格书 §4，SQLite 仅承担 Runtime 状态）。
  * 创建日期：2026-08-12
- * 修改日期：2026-08-12
+ * 修改日期：2026-08-13
  */
 // Package scheduler 提供 frontier 持久化与抓取调度。
 package scheduler
@@ -71,7 +71,7 @@ func (f *Frontier) Close() error {
 	return f.DB.Close()
 }
 
-// Enqueue 批量入队（normalized_url 主键去重），返回实际新增数。
+// Enqueue 批量入队（normalized_url 主键去重；done/failed 终态重置为 queued 支持重抓，在途状态忽略），返回实际入队数。
 func (f *Frontier) Enqueue(ctx context.Context, entries []FrontierEntry) (int, error) {
 
 	tx, err := f.DB.BeginTx(ctx, nil)
@@ -80,9 +80,19 @@ func (f *Frontier) Enqueue(ctx context.Context, entries []FrontierEntry) (int, e
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.PrepareContext(ctx, `INSERT OR IGNORE INTO frontier
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO frontier
 		(normalized_url, host, priority, depth, source_url, discovered_at, next_fetch_at, retry_count, state)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(normalized_url) DO UPDATE SET
+			host = excluded.host,
+			priority = excluded.priority,
+			depth = excluded.depth,
+			source_url = excluded.source_url,
+			discovered_at = excluded.discovered_at,
+			next_fetch_at = excluded.next_fetch_at,
+			retry_count = excluded.retry_count,
+			state = 'queued'
+		WHERE frontier.state IN ('done', 'failed')`)
 	if err != nil {
 		return 0, rove.NewError("frontier.query", rove.CategoryIndex, true, "prepare insert: %v", err)
 	}

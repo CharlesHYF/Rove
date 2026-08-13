@@ -57,6 +57,7 @@ logs/
 # --- 运行时 ---
 *.pid
 coverage/
+rove.db
 
 # --- 过程产物（spec/plan/设计草稿，禁止提交） ---
 docs/superpowers/
