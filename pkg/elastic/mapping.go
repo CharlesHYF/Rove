@@ -98,18 +98,8 @@ func (c *Client) ensureIndex(ctx context.Context, alias string, mapping map[stri
 	}
 
 	physical := fmt.Sprintf("%s-v001", alias)
-	body, err := json.Marshal(mapping)
-	if err != nil {
-		return rove.NewError("es.mapping", rove.CategoryIndex, false, "marshal mapping: %v", err)
-	}
-
-	resp, err := c.es.Indices.Create(physical, c.es.Indices.Create.WithContext(ctx), c.es.Indices.Create.WithBody(strings.NewReader(string(body))))
-	if err != nil {
-		return rove.NewError("es.create_index", rove.CategoryIndex, true, "create index %s: %v", physical, err)
-	}
-	defer resp.Body.Close()
-	if resp.IsError() {
-		return rove.NewError("es.create_index", rove.CategoryIndex, true, "create index %s status: %s", physical, resp.Status())
+	if err := c.createPhysical(ctx, physical, mapping); err != nil {
+		return err
 	}
 
 	aliasBody := fmt.Sprintf(`{"actions":[{"add":{"index":%q,"alias":%q}}]}`, physical, alias)

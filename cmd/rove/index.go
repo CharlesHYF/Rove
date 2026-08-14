@@ -14,14 +14,25 @@ import (
 	"rove/internal/config"
 	"rove/pkg/elastic"
 	"rove/pkg/index"
+	"rove/pkg/retrieval"
 )
 
-// indexCmd 实现 rove index <init|status|stats|rebuild>。
+// indexCmd 实现 rove index <init|status|stats|rebuild|migrate>。
 var indexCmd = &cobra.Command{
-	Use:   "index <init|status|stats|rebuild>",
+	Use:   "index <init|status|stats|rebuild|migrate>",
 	Short: "索引生命周期管理",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runIndex,
+}
+
+var indexMigrateFlags struct {
+	deleteOld bool
+}
+
+// init 注册 index 命令参数。
+func init() {
+
+	indexCmd.Flags().BoolVar(&indexMigrateFlags.deleteOld, "delete-old", false, "migrate 完成后删除旧版本物理索引")
 }
 
 // runIndex 分发索引子操作。
@@ -67,7 +78,16 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		}
 		cmd.Printf("indexes rebuilt\n")
 		return nil
+	case "migrate":
+		migrator := index.NewMigrator(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim))
+		result, err := migrator.Migrate(ctx, cfg.Index.EmbeddingDim, indexMigrateFlags.deleteOld)
+		if err != nil {
+			return err
+		}
+		cmd.Printf("migrated documents: %s -> %s (%d docs)\n", result.DocumentsOld, result.DocumentsNew, result.DocumentsMoved)
+		cmd.Printf("migrated chunks: %s -> %s (%d chunks)\n", result.ChunksOld, result.ChunksNew, result.ChunksMoved)
+		return nil
 	default:
-		return fmt.Errorf("unknown index subcommand: %s (init|status|stats|rebuild)", args[0])
+		return fmt.Errorf("unknown index subcommand: %s (init|status|stats|rebuild|migrate)", args[0])
 	}
 }
