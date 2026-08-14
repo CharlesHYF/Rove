@@ -18,6 +18,9 @@ if [ -f go.mod ]; then
 
   skip_log=$(mktemp)
   go test -json ./... -cover 2>&1 | awk -v skip_log="${skip_log}" '
+    BEGIN {
+      skips = 0
+    }
     /"Action":"skip"/ {
       skips++
       name = $0
