@@ -48,6 +48,9 @@ func buildFilters(f Filters) []any {
 	if f.Language != "" {
 		filters = append(filters, map[string]any{"term": map[string]any{"language": f.Language}})
 	}
+	if f.SourceType != "" {
+		filters = append(filters, map[string]any{"term": map[string]any{"source_type": f.SourceType}})
+	}
 	if f.PublishedFrom != nil || f.PublishedTo != nil {
 		rangeClause := map[string]any{}
 		if f.PublishedFrom != nil {

@@ -32,7 +32,7 @@ docker compose up -d elasticsearch
 | `rove` | 进入 TUI：默认对话式查询（回车检索、Ctrl+E 展开分数、Ctrl+L 清空），Tab 切换五视图调试器 |
 | `rove fetch <url> [--mode auto\|http\|browser]` | 抓取单页，输出标准 Document（auto 模式动态页自动浏览器升级） |
 | `rove crawl <seed> [--max-pages N] [--max-depth D]` | 抓取整个站点：发现链接、去重、索引（含向量） |
-| `rove search <query> [--json]` | BM25 + 向量 Hybrid 检索，输出 Evidence 与分数分解 |
+| `rove search <query> [--json] [--vertical auto\|web\|docs\|code\|academic]` | BM25 + 向量 Hybrid 检索，输出 Evidence 与分数分解（垂类路由默认自动推断） |
 | `rove browse <url>` | 浏览器渲染页面状态（文本/链接/交互元素 + 稳定元素 id） |
 | `rove map <url> [--json]` | 发现页面链接（站内/站外，仅 URL Discovery，不建索引） |
 | `rove mcp` | 以 stdio 启动 MCP Server，供 Claude Desktop / Cursor 等 Agent 接入（rove_search/fetch/browse/crawl） |

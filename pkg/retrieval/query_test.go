@@ -50,3 +50,15 @@ func TestBuildSearchBodyNoFilters(t *testing.T) {
 	boolQuery := parsed["query"].(map[string]any)["bool"].(map[string]any)
 	require.NotContains(t, boolQuery, "filter")
 }
+
+func TestBuildSearchBodySourceTypeFilter(t *testing.T) {
+
+	body, err := buildSearchBody(&Query{Text: "hello", TopK: 10, Filters: Filters{SourceType: "docs"}}, 50)
+	require.NoError(t, err)
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(body, &parsed))
+	boolQuery := parsed["query"].(map[string]any)["bool"].(map[string]any)
+	filter := boolQuery["filter"].([]any)
+	require.Len(t, filter, 1)
+	require.Equal(t, map[string]any{"term": map[string]any{"source_type": "docs"}}, filter[0])
+}

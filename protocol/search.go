@@ -38,6 +38,7 @@ type Hit struct {
 // SearchResponse CLI/Agent 检索输出。
 type SearchResponse struct {
 	Query    string
+	Vertical string
 	Hits     []Hit
 	Evidence []EvidenceItem
 	Timings  map[string]time.Duration
@@ -62,6 +63,7 @@ func FromSearchResult(result *retrieval.SearchResult, items []evidence.Evidence)
 
 	response := &SearchResponse{
 		Query:    result.Query,
+		Vertical: string(result.Vertical),
 		Hits:     make([]Hit, 0, len(result.Hits)),
 		Evidence: make([]EvidenceItem, 0, len(items)),
 		Timings:  result.Timings,

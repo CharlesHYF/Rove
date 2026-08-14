@@ -27,6 +27,7 @@ const candidateMultiplier = 5
 type Filters struct {
 	Domain        string
 	Language      string
+	SourceType    string
 	PublishedFrom *time.Time
 	PublishedTo   *time.Time
 }
@@ -36,7 +37,8 @@ type Query struct {
 	Text          string
 	Filters       Filters
 	TopK          int
-	IncludeVector bool // 配置了 embedder 时默认 true（由 Retriever 决定）
+	IncludeVector bool     // 配置了 embedder 时默认 true（由 Retriever 决定）
+	Vertical      Vertical // 垂类路由：auto 自动推断（默认），docs/code/academic 应用 source_type 过滤
 }
 
 // SearchHit 一条 document 级结果。
@@ -49,10 +51,11 @@ type SearchHit struct {
 
 // SearchResult 检索输出。
 type SearchResult struct {
-	Query   string
-	Hits    []SearchHit
-	Timings map[string]time.Duration
-	TraceID string
+	Query    string
+	Vertical Vertical
+	Hits     []SearchHit
+	Timings  map[string]time.Duration
+	TraceID  string
 }
 
 // Retriever 执行 BM25 + 可选向量检索。
@@ -79,6 +82,18 @@ func New(es *elastic.Client, embedders ...Embedder) *Retriever {
 func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error) {
 
 	timings := map[string]time.Duration{}
+
+	// 垂类路由（确定性，无 LLM）：auto 推断；仅 docs/code/academic 应用 source_type 过滤，web 为免过滤兜底。
+	processorStart := time.Now()
+	vertical := q.Vertical
+	if vertical == VerticalAuto {
+		vertical = RouteVertical(q.Text)
+	}
+	effectiveQuery := *q
+	if vertical != VerticalWeb {
+		effectiveQuery.Filters.SourceType = string(vertical)
+	}
+	timings["query_processor"] = time.Since(processorStart)
 
 	topK := q.TopK
 	if topK <= 0 {
@@ -108,7 +123,7 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 
 	// BM25 腿
 	lexicalStart := time.Now()
-	body, err := buildSearchBody(q, candidateSize)
+	body, err := buildSearchBody(&effectiveQuery, candidateSize)
 	if err != nil {
 		return nil, err
 	}
@@ -137,10 +152,11 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 	timings["rank"] = time.Since(rankStart)
 
 	return &SearchResult{
-		Query:   q.Text,
-		Hits:    result,
-		Timings: timings,
-		TraceID: newTraceID(),
+		Query:    q.Text,
+		Vertical: vertical,
+		Hits:     result,
+		Timings:  timings,
+		TraceID:  newTraceID(),
 	}, nil
 }
 

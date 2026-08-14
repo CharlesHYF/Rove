@@ -229,6 +229,7 @@ func chunkSource(doc *document.Document, chunk document.Chunk) map[string]any {
 		"position":     chunk.Position,
 		"language":     chunk.Language,
 		"domain":       doc.Source.Domain,
+		"source_type":  doc.Source.Type,
 		"token_count":  chunk.TokenCount,
 	}
 	if doc.PublishedAt != nil {

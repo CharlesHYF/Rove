@@ -21,6 +21,7 @@ var searchFlags struct {
 	topK     int
 	domain   string
 	language string
+	vertical string
 	json     bool
 }
 
@@ -38,6 +39,7 @@ func init() {
 	searchCmd.Flags().IntVar(&searchFlags.topK, "top-k", 0, "返回条数（默认配置 search.top_k）")
 	searchCmd.Flags().StringVar(&searchFlags.domain, "domain", "", "按域名过滤")
 	searchCmd.Flags().StringVar(&searchFlags.language, "language", "", "按语言过滤（如 en/zh）")
+	searchCmd.Flags().StringVar(&searchFlags.vertical, "vertical", "auto", "垂类路由: auto|web|docs|code|academic")
 	searchCmd.Flags().BoolVar(&searchFlags.json, "json", false, "以 JSON 输出")
 }
 
@@ -57,6 +59,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	if topK <= 0 {
 		topK = cfg.Search.TopK
 	}
+	vertical, err := retrieval.ParseVertical(searchFlags.vertical)
+	if err != nil {
+		return err
+	}
 	query := &retrieval.Query{
 		Text: args[0],
 		TopK: topK,
@@ -64,6 +70,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 			Domain:   searchFlags.domain,
 			Language: searchFlags.language,
 		},
+		Vertical: vertical,
 	}
 	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim)))
 	result, err := searchService.Search(cmd.Context(), query)
@@ -81,7 +88,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return encoder.Encode(protocol.FromSearchResult(result, items))
 	}
 
-	cmd.Printf("query: %s (trace %s)\n", result.Query, result.TraceID)
+	cmd.Printf("query: %s (trace %s, vertical %s)\n", result.Query, result.TraceID, result.Vertical)
 	for rank, item := range items {
 		cmd.Printf("%d. %s  [%.3f]\n", rank+1, item.Title, item.Score)
 		cmd.Printf("   %s\n", item.URL)

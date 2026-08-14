@@ -69,6 +69,7 @@ func chunksMapping(embeddingDim int) map[string]any {
 				"language":     map[string]any{"type": "keyword"},
 				"published_at": map[string]any{"type": "date"},
 				"domain":       map[string]any{"type": "keyword"},
+				"source_type":  map[string]any{"type": "keyword"},
 				"token_count":  map[string]any{"type": "integer"},
 				"embedding":    map[string]any{"type": "dense_vector", "dims": embeddingDim, "index": true, "similarity": "cosine"},
 			},

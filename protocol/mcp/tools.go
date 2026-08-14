@@ -32,6 +32,7 @@ type searchArgs struct {
 	TopK     int    `json:"top_k,omitempty" jsonschema:"返回条数，默认 10"`
 	Domain   string `json:"domain,omitempty" jsonschema:"按域名过滤"`
 	Language string `json:"language,omitempty" jsonschema:"按语言过滤，如 en/zh"`
+	Vertical string `json:"vertical,omitempty" jsonschema:"垂类路由 auto/web/docs/code/academic，默认 auto"`
 }
 
 // registerSearchTool 注册 rove_search。
@@ -44,14 +45,19 @@ func (s *Server) registerSearchTool(search SearchService) {
 		if strings.TrimSpace(args.Query) == "" {
 			return nil, nil, fmt.Errorf("query 不能为空")
 		}
+		vertical, verticalErr := retrieval.ParseVertical(args.Vertical)
+		if verticalErr != nil {
+			return nil, nil, verticalErr
+		}
 		topK := args.TopK
 		if topK <= 0 {
 			topK = defaultTopK
 		}
 		result, err := search.Search(ctx, &retrieval.Query{
-			Text:    args.Query,
-			TopK:    topK,
-			Filters: retrieval.Filters{Domain: args.Domain, Language: args.Language},
+			Text:     args.Query,
+			TopK:     topK,
+			Filters:  retrieval.Filters{Domain: args.Domain, Language: args.Language},
+			Vertical: vertical,
 		})
 		if err != nil {
 			return nil, nil, err
