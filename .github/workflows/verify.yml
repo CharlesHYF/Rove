@@ -95,3 +95,4 @@ jobs:
         env:
           ROVE_TEST_ES_URL: http://localhost:9200
           ROVE_BROWSER_EXECUTABLE: /usr/bin/google-chrome
+          ROVE_FAIL_ON_SKIP: "1"
