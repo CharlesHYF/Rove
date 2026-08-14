@@ -22,6 +22,7 @@ var searchFlags struct {
 	domain   string
 	language string
 	vertical string
+	rerank   bool
 	json     bool
 }
 
@@ -40,6 +41,7 @@ func init() {
 	searchCmd.Flags().StringVar(&searchFlags.domain, "domain", "", "按域名过滤")
 	searchCmd.Flags().StringVar(&searchFlags.language, "language", "", "按语言过滤（如 en/zh）")
 	searchCmd.Flags().StringVar(&searchFlags.vertical, "vertical", "auto", "垂类路由: auto|web|docs|code|academic")
+	searchCmd.Flags().BoolVar(&searchFlags.rerank, "rerank", false, "启用启发式重排序（词面重叠 + 标题命中）")
 	searchCmd.Flags().BoolVar(&searchFlags.json, "json", false, "以 JSON 输出")
 }
 
@@ -72,7 +74,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		},
 		Vertical: vertical,
 	}
-	searchService := app.NewSearch(retrieval.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim)))
+	retriever := retrieval.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim))
+	if searchFlags.rerank {
+		retriever.Reranker = retrieval.HeuristicReranker{}
+	}
+	searchService := app.NewSearch(retriever)
 	result, err := searchService.Search(cmd.Context(), query)
 	if err != nil {
 		return err

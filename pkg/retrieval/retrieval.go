@@ -63,6 +63,7 @@ type Retriever struct {
 	es       *elastic.Client
 	ranker   ranking.Features
 	embedder Embedder
+	Reranker Reranker // 可选重排序（nil 则跳过，历史行为不变）
 }
 
 // New 构造 Retriever；embedders 可传 0 或 1 个（无则不启用向量腿）。
@@ -150,6 +151,16 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 	rankStart := time.Now()
 	result := r.rankFused(q, grouped, docs, topK)
 	timings["rank"] = time.Since(rankStart)
+
+	// 可选重排序（PRD FR-RNK-002）
+	if r.Reranker != nil {
+		rerankStart := time.Now()
+		result, err = r.Reranker.Rerank(ctx, q, result)
+		if err != nil {
+			return nil, err
+		}
+		timings["rerank"] = time.Since(rerankStart)
+	}
 
 	return &SearchResult{
 		Query:    q.Text,
