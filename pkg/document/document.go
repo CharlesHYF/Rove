@@ -76,7 +76,7 @@ type Chunk struct {
 	Position    int    // 文档内序号
 	HeadingPath string // 如 "Installation > Quick Start"
 	Content     string
-	TokenCount  int    // 近似估算
+	TokenCount  int // 近似估算
 	Language    string
 	Embedding   []float32 // 可选；M3 起由 Embedder 填充
 	Metadata    map[string]any

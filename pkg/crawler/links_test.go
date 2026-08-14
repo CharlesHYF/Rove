@@ -21,8 +21,8 @@ func TestCandidateLinks(t *testing.T) {
 			"/page2",
 			"https://example.com/page3?utm_source=x",
 			"https://other.com/external", // 跨域，默认排除
-			"javascript:void(0)",          // 非法 scheme，排除
-			"#fragment",                   // 片段，排除
+			"javascript:void(0)",         // 非法 scheme，排除
+			"#fragment",                  // 片段，排除
 		},
 	}
 	links, err := policy.CandidateLinks("https://example.com/start", parsed)

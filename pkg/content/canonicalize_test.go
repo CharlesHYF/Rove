@@ -16,10 +16,10 @@ func TestCanonicalize(t *testing.T) {
 
 	canonicalizer := &Canonicalizer{}
 	cases := []struct {
-		name    string
-		rawURL  string
-		canon   string
-		want    string
+		name   string
+		rawURL string
+		canon  string
+		want   string
 	}{
 		{"scheme case", "HTTP://Example.com/A", "", "http://example.com/A"},
 		{"default port stripped", "https://example.com:443/a", "", "https://example.com/a"},

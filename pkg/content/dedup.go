@@ -16,8 +16,8 @@ const nearDupJaccardThreshold = 0.8
 
 // Deduper 实现三层去重判定并登记已见文档。
 type Deduper struct {
-	canonical map[string]string            // canonicalURL -> documentID
-	exact     map[string]string            // contentHash -> documentID
+	canonical map[string]string              // canonicalURL -> documentID
+	exact     map[string]string              // contentHash -> documentID
 	seen      map[string]map[string]struct{} // documentID -> tokenSet
 }
 

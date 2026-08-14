@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"rove/pkg/elastic"
-	"rove/pkg/retrieval"
 	"rove/pkg/rove"
 )
 
@@ -31,11 +30,11 @@ type MigrateResult struct {
 // Migrator 索引迁移器：documents 走 ES reindex；chunks 因 embedding 不入 _source，需扫描重嵌入回填。
 type Migrator struct {
 	client   *elastic.Client
-	embedder retrieval.Embedder
+	embedder Embedder
 }
 
 // NewMigrator 构造迁移器。
-func NewMigrator(client *elastic.Client, embedder retrieval.Embedder) *Migrator {
+func NewMigrator(client *elastic.Client, embedder Embedder) *Migrator {
 
 	return &Migrator{client: client, embedder: embedder}
 }
