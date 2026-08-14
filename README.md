@@ -34,6 +34,7 @@ docker compose up -d elasticsearch
 | `rove crawl <seed> [--max-pages N] [--max-depth D]` | 抓取整个站点：发现链接、去重、索引（含向量） |
 | `rove search <query> [--json]` | BM25 + 向量 Hybrid 检索，输出 Evidence 与分数分解 |
 | `rove browse <url>` | 浏览器渲染页面状态（文本/链接/交互元素 + 稳定元素 id） |
+| `rove mcp` | 以 stdio 启动 MCP Server，供 Claude Desktop / Cursor 等 Agent 接入（rove_search/fetch/browse/crawl） |
 | `rove index init\|status\|stats\|rebuild` | 索引生命周期管理 |
 
 ## 最小演示
@@ -55,6 +56,21 @@ docker compose up -d elasticsearch
 - [x] M4 Crawler
 - [x] M5 Browser Escalation
 - [x] M6 TUI + 收尾
+
+## MCP 接入
+
+`rove mcp` 以 stdio 启动 MCP Server。Claude Desktop / Cursor 的 mcpServers 配置示例：
+
+```json
+{
+  "mcpServers": {
+    "rove": {
+      "command": "rove",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
 ## 配置
 

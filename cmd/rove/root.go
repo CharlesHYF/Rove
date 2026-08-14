@@ -30,4 +30,5 @@ func init() {
 	rootCmd.AddCommand(indexCmd)
 	rootCmd.AddCommand(crawlCmd)
 	rootCmd.AddCommand(browseCmd)
+	rootCmd.AddCommand(mcpCmd)
 }
