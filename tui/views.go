@@ -1,7 +1,7 @@
 /*
- * 文件作用：TUI 五视图渲染 -- 各视图内容来自注入的 services 与 telemetry 事件。
+ * 文件作用：TUI 视图渲染 -- 对话首页与五调试视图，内容来自注入的 services 与 telemetry 事件。
  * 创建日期：2026-08-12
- * 修改日期：2026-08-12
+ * 修改日期：2026-08-15
  */
 package tui
 
@@ -31,6 +31,65 @@ func renderTabs(active int) string {
 		}
 	}
 	return strings.Join(tabs, "  ")
+}
+
+// renderChat 渲染对话视图（默认首页）。
+func renderChat(m *Model) string {
+
+	var sb strings.Builder
+	sb.WriteString("输入问题后回车检索（自有索引，无需 API Key）；Ctrl+E 展开分数，Ctrl+L 清空，Tab 切视图\n\n")
+
+	total := len(m.chatMessages)
+	end := total - m.chatScroll
+	if end < 0 {
+		end = 0
+	}
+	start := end - CHAT_VISIBLE_MESSAGES
+	if start < 0 {
+		start = 0
+	}
+	if m.chatScroll > 0 && start > 0 {
+		sb.WriteString(fmt.Sprintf("(向上翻页 %d 屏)\n", m.chatScroll))
+	}
+	for index := start; index < end; index++ {
+		sb.WriteString(renderChatMessage(m.chatMessages[index]) + "\n")
+	}
+	if m.chatLoading {
+		sb.WriteString("检索中...\n")
+	}
+	sb.WriteString("\n你: " + m.chatInput)
+	return sb.String()
+}
+
+// renderChatMessage 渲染单条对话消息。
+func renderChatMessage(message chatMessage) string {
+
+	if message.role == userRole {
+		return "你: " + message.text
+	}
+	var sb strings.Builder
+	sb.WriteString("答: " + message.text + "\n")
+	if len(message.sources) > 0 {
+		sb.WriteString("来源:\n")
+		for index, source := range message.sources {
+			sb.WriteString(fmt.Sprintf(" %d. %s -- %s（相关度 %.2f）\n", index+1, source.title, source.url, source.score))
+		}
+	}
+	if message.scoreLine != "" {
+		sb.WriteString(message.scoreLine + "\n")
+	}
+	if message.timingLine != "" {
+		sb.WriteString(message.timingLine + "\n")
+	}
+	if message.expanded {
+		for _, line := range message.detail {
+			sb.WriteString(line + "\n")
+		}
+	}
+	if message.errText != "" {
+		sb.WriteString("错误: " + message.errText + "\n")
+	}
+	return strings.TrimSuffix(sb.String(), "\n")
 }
 
 // renderSearch 渲染检索视图。

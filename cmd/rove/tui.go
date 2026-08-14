@@ -1,7 +1,7 @@
 /*
- * 文件作用：rove 无子命令时进入 TUI -- 组装 services 并启动 Bubble Tea 程序。
+ * 文件作用：rove 无子命令时进入 TUI -- 组装 services 并启动 Bubble Tea 程序（对话首页 + 五调试视图）。
  * 创建日期：2026-08-12
- * 修改日期：2026-08-12
+ * 修改日期：2026-08-15
  */
 package main
 
@@ -17,7 +17,7 @@ import (
 	"rove/tui"
 )
 
-// runTUI 启动五视图 TUI。
+// runTUI 启动 TUI（对话查询首页 + 五调试视图）。
 func runTUI() error {
 
 	cfg, err := config.Load("")

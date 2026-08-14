@@ -29,7 +29,7 @@ docker compose up -d elasticsearch
 
 | 命令 | 说明 |
 | --- | --- |
-| `rove` | 进入五视图 TUI 调试器（输入查询回车搜索，Tab 切换视图，Ctrl+C 退出） |
+| `rove` | 进入 TUI：默认对话式查询（回车检索、Ctrl+E 展开分数、Ctrl+L 清空），Tab 切换五视图调试器 |
 | `rove fetch <url> [--mode auto\|http\|browser]` | 抓取单页，输出标准 Document（auto 模式动态页自动浏览器升级） |
 | `rove crawl <seed> [--max-pages N] [--max-depth D]` | 抓取整个站点：发现链接、去重、索引（含向量） |
 | `rove search <query> [--json]` | BM25 + 向量 Hybrid 检索，输出 Evidence 与分数分解 |
