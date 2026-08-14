@@ -21,7 +21,7 @@
 - [许可](#许可)
 
 ## 项目简介
-Rove 是面向 AI Agent 的开源（Apache-2.0）自托管 Web 基础设施。它把 Crawl → Fetch → Parse → Index → Retrieve → Rank → Evidence 的完整链路装进一个 Go 单二进制，让任意 Agent 不依赖外部 Search SaaS 就能可靠地发现、访问、索引 Web 内容，并以可追溯的 Evidence 形式获得检索结果。核心主张：自己的索引、自己的证据、自己的账单。
+Rove 是面向 AI Agent 的开源（Apache-2.0）自托管 Web 基础设施：一个 Go 单二进制，装下 Crawl → Fetch → Parse → Index → Retrieve → Rank → Evidence 的完整链路。Agent 不依赖外部 Search SaaS，就能发现、访问、索引 Web 内容，并拿到可直接引用的 Evidence。核心主张：自己的索引、自己的证据、自己的账单。
 
 ## 技术栈
 - 语言：Go（单二进制，go.mod 声明 1.26.5）
@@ -32,13 +32,13 @@ Rove 是面向 AI Agent 的开源（Apache-2.0）自托管 Web 基础设施。�
 - 测试：Go testing + testify；交付闸门 `make verify`（规范校验 + 全量测试）
 
 ## 项目亮点
-- 无 key 全闭环：内置确定性 PseudoEmbedder，没有任何 LLM API Key 也能完成 抓取 → 索引 → BM25+向量 Hybrid → Evidence 全流程
-- 可追溯证据：每条结果携带 URL、来源、相关片段、分数分解（lexical/vector/fusion/rank）与阶段耗时，可直接被 Agent 引用
-- HTTP First + Browser Escalation：静态页走轻量 HTTP，动态页自动升级浏览器渲染，进入同一条内容管线
-- 对话式 TUI：启动即对话查询，回答卡片带来源与分数；Tab 切换六视图运行时调试器（对话/搜索/抓取/浏览/索引/运行时）
+- 无 key 全闭环：内置确定性 PseudoEmbedder，零 LLM API Key 也能跑通 抓取 → 索引 → BM25+向量 Hybrid → Evidence 全流程
+- 对话式 TUI：启动即问答，回答卡片带来源与分数分解；答不上来就明说（词面兜底），绝不硬凑答案；Tab 切换六视图调试器
+- 可追溯 Evidence：每条结果带 URL、来源、相关片段与分数分解（lexical/vector/fusion/rank），可直接被 Agent 引用
 - 原生 MCP：stdio 一键接入 Claude Desktop / Cursor，暴露 search/fetch/browse/crawl 四个工具
-- 确定性优先：Query Router（垂类推断）、启发式 Reranker、四层去重均无 LLM 依赖，可测试、可复现
-- 索引零停机演进：`rove index migrate` 创建新版本索引、重嵌入向量、计数校验后原子切换 alias
+- HTTP First：静态页走轻量 HTTP，动态页自动升级浏览器渲染，共用一条内容管线
+- 对站点友好：默认遵守 robots.txt 并带 500ms 抓取间隔（可配置），自动限速避免触发站点封禁
+- 零停机演进：`rove index migrate` 建新版本索引、重嵌入向量、计数校验后原子切换 alias
 
 ## 快速开始
 ### 前置要求
@@ -48,13 +48,13 @@ Rove 是面向 AI Agent 的开源（Apache-2.0）自托管 Web 基础设施。�
 
 ### 本地运行
 ```bash
-# 1) 构建
+# 1) 构建（产物在 bin/）
 go build -o bin/rove ./cmd/rove
 
-# 2) 启动 Elasticsearch（首次拉取镜像约 1.3GB，之后秒起）
+# 2) 启动 Elasticsearch（首次拉镜像约 1.3GB，之后秒起）
 docker compose up -d elasticsearch
 
-# 3) 初始化索引
+# 3) 初始化索引（幂等，可反复执行）
 ./bin/rove index init
 ```
 
