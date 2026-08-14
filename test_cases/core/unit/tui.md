@@ -27,6 +27,9 @@
 | TC-TUI-022 | P0 | 来源与分数构造 | 4 条 Evidence + 分数 | buildChatAnswer | 来源截 3 条、分数/耗时正确 | 与预期一致 | Pass | TestBuildChatAnswerSourcesAndScores |
 | TC-TUI-023 | P1 | 长回答截断 | 12 行 / 400 字符文本 | buildChatAnswer | 行数与字符数受限并带省略号 | 与预期一致 | Pass | TestBuildChatAnswerTruncatesLongAnswer / TruncatesLongChars |
 | TC-TUI-024 | P0 | 错误兜底 | 构造错误 | buildChatError | 友好提示 + 原始错误 | 与预期一致 | Pass | TestBuildChatError |
+| TC-TUI-025 | P0 | 词面未命中降级 | 顶部结果不含查询词 | buildChatAnswer("什么是 npm") | lowConfidence=true，提示语料未覆盖，来源降级"可能相关" | 与预期一致 | Pass | TestBuildChatAnswerNoTermMatch |
+| TC-TUI-026 | P0 | 词面命中正常作答 | 顶部结果含查询词 | buildChatAnswer("什么是 npm") | lowConfidence=false，正常回答 | 与预期一致 | Pass | TestBuildChatAnswerTermMatchNormal |
+| TC-TUI-027 | P0 | 词面命中判定 | 各类查询 | QueryTermHit | ASCII 提取/中文退回/空查询均正确 | 与预期一致 | Pass | TestQueryTermHitAsciiExtraction / TestQueryTermHitCjkFallback |
 
 ## 功能二：模型逻辑
 

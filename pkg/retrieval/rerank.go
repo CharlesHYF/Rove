@@ -7,9 +7,13 @@ package retrieval
 
 import (
 	"context"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// asciiWordPattern 提取查询中的 ASCII 词（字母数字，至少 2 字符），用于词面命中判断。
+var asciiWordPattern = regexp.MustCompile("[a-z0-9]{2,}")
 
 // 启发式重排序权重。
 const (
@@ -80,4 +84,30 @@ func tokenizeQuery(text string) []string {
 		}
 	}
 	return terms
+}
+
+// QueryTermHit 判断查询的关键词是否词面命中正文/标题/标题路径（确定性，无 LLM，供对话"诚实兜底"使用）。
+func QueryTermHit(query, content, title, heading string) bool {
+
+	terms := queryGateTerms(query)
+	if len(terms) == 0 {
+		return true
+	}
+	haystack := strings.ToLower(content + "\n" + title + "\n" + heading)
+	for _, term := range terms {
+		if strings.Contains(haystack, term) {
+			return true
+		}
+	}
+	return false
+}
+
+// queryGateTerms 提取用于词面命中判断的关键词：优先 ASCII 词；查询无 ASCII 词时退回空白切分的中文整词。
+func queryGateTerms(query string) []string {
+
+	asciiTerms := asciiWordPattern.FindAllString(strings.ToLower(query), -1)
+	if len(asciiTerms) > 0 {
+		return asciiTerms
+	}
+	return tokenizeQuery(query)
 }

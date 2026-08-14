@@ -79,3 +79,18 @@ func TestHeuristicRerankerNilScoresInitialized(t *testing.T) {
 	require.NotNil(t, result[0].Scores, "Scores 为 nil 时应初始化")
 	require.Contains(t, result[0].Scores, "rerank")
 }
+
+func TestQueryTermHitAsciiExtraction(t *testing.T) {
+
+	require.True(t, QueryTermHit("什么是 npm", "npm 是包管理器", "标题", ""), "ASCII 词命中正文")
+	require.False(t, QueryTermHit("什么是 npm", "vue 响应式系统介绍", "深入响应式系统", ""), "语料不含查询词应判未命中")
+	require.True(t, QueryTermHit("what is npm", "npm install", "", ""), "英文查询命中")
+	require.False(t, QueryTermHit("什么是 npm", "node 是运行时", "Go 教程", ""), "标题与正文都不含 npm")
+}
+
+func TestQueryTermHitCjkFallback(t *testing.T) {
+
+	require.True(t, QueryTermHit("响应式系统", "vue 的响应式系统介绍", "", ""), "无 ASCII 词时退回中文整词匹配")
+	require.False(t, QueryTermHit("响应式系统", "npm 包管理", "", ""), "中文整词未命中")
+	require.True(t, QueryTermHit("", "任意内容", "", ""), "空查询不拦截")
+}

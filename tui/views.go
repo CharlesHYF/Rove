@@ -70,7 +70,11 @@ func renderChatMessage(message chatMessage) string {
 	var sb strings.Builder
 	sb.WriteString("答: " + message.text + "\n")
 	if len(message.sources) > 0 {
-		sb.WriteString("来源:\n")
+		sourceLabel := "来源:"
+		if message.lowConfidence {
+			sourceLabel = "可能相关:"
+		}
+		sb.WriteString(sourceLabel + "\n")
 		for index, source := range message.sources {
 			sb.WriteString(fmt.Sprintf(" %d. %s -- %s（相关度 %.2f）\n", index+1, source.title, source.url, source.score))
 		}

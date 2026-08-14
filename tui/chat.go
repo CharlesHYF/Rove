@@ -40,14 +40,15 @@ type chatSource struct {
 
 // chatMessage 对话消息。
 type chatMessage struct {
-	role       string
-	text       string
-	sources    []chatSource
-	scoreLine  string
-	timingLine string
-	detail     []string
-	errText    string
-	expanded   bool
+	role          string
+	text          string
+	sources       []chatSource
+	scoreLine     string
+	timingLine    string
+	detail        []string
+	errText       string
+	expanded      bool
+	lowConfidence bool // 查询词未词面命中顶部结果时为真，来源降级为"可能相关"
 }
 
 // buildChatAnswer 由检索结果构造回答卡片（纯函数，便于单测）。
@@ -56,9 +57,24 @@ func buildChatAnswer(query string, items []evidence.Evidence, hits []retrieval.S
 	message := chatMessage{role: assistantRole}
 	if len(items) == 0 {
 		message.text = "没有找到相关内容，试试换种说法。"
+		message.lowConfidence = true
 		return message
 	}
-	message.text = truncateAnswer(items[0].Text)
+	if len(hits) > 0 {
+		title := ""
+		if hits[0].Document != nil {
+			title = hits[0].Document.Title
+		}
+		if !retrieval.QueryTermHit(query, hits[0].Chunk.Content, title, hits[0].Chunk.HeadingPath) {
+			// 查询关键词在顶部结果中完全没有词面命中：不做权威回答，降级为"可能相关"并提示补充语料。
+			message.lowConfidence = true
+			message.text = "没有找到与问题直接相关的内容（当前语料可能未覆盖）。以下是最接近的结果，仅供参考，可以先爬取相关站点补充语料。"
+		} else {
+			message.text = truncateAnswer(items[0].Text)
+		}
+	} else {
+		message.text = truncateAnswer(items[0].Text)
+	}
 	sourceCount := len(items)
 	if sourceCount > CHAT_SOURCE_MAX {
 		sourceCount = CHAT_SOURCE_MAX
