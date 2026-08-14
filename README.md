@@ -105,6 +105,7 @@ docker compose up -d elasticsearch
 | `ROVE_CRAWL_STATE_DB` | frontier SQLite 路径 | rove.db |
 | `ROVE_CRAWL_MAX_PAGES` / `ROVE_CRAWL_MAX_DEPTH` | 抓取上限 | 1000 / 3 |
 | `ROVE_CRAWL_WORKERS` | 抓取并发 | 2 |
+| `ROVE_CRAWL_DELAY` | 每次抓取最小间隔（礼貌爬取，避免触发站点限速） | 500ms |
 | `ROVE_BROWSER_EXECUTABLE` | 浏览器可执行文件路径（自动发现失败时指定） | 自动发现 |
 | `ROVE_BROWSER_ENABLED` | 浏览器功能开关 | true |
 | `ROVE_SEARCH_TOP_K` | 检索默认返回条数 | 10 |

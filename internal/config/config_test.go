@@ -80,6 +80,7 @@ func TestEnvFullMapping(t *testing.T) {
 	t.Setenv("ROVE_INDEX_PREFIX", "rove-dev")
 	t.Setenv("ROVE_CRAWL_WORKERS", "4")
 	t.Setenv("ROVE_CRAWL_STATE_DB", "tmp.db")
+	t.Setenv("ROVE_CRAWL_DELAY", "2s")
 
 	c, err := Load("")
 	require.NoError(t, err)
@@ -100,4 +101,12 @@ func TestEnvFullMapping(t *testing.T) {
 	require.Equal(t, "rove-dev", c.Index.Prefix)
 	require.Equal(t, 4, c.Crawl.Workers)
 	require.Equal(t, "tmp.db", c.Crawl.StateDB)
+	require.Equal(t, 2*time.Second, c.Crawl.Delay.Duration, "ROVE_CRAWL_DELAY 应解析为时长")
+}
+
+func TestDefaultCrawlDelayPolite(t *testing.T) {
+
+	c, err := Load("")
+	require.NoError(t, err)
+	require.Equal(t, 500*time.Millisecond, c.Crawl.Delay.Duration, "默认抓取间隔应非零，避免触发站点限速")
 }

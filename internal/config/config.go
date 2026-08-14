@@ -68,6 +68,7 @@ type CrawlConfig struct {
 	DomainAllowlist []string `yaml:"domain_allowlist"`
 	Workers         int      `yaml:"workers"`
 	StateDB         string   `yaml:"state_db"`
+	Delay           Duration `yaml:"delay"` // 每次抓取的最小间隔（礼貌爬取，避免触发站点限速）
 }
 
 // ESConfig Elasticsearch 配置（M2 使用）。
@@ -118,7 +119,7 @@ func Default() *Config {
 			AllowPrivate: false,
 		},
 		Chunk:    ChunkConfig{MaxTokens: 800, Overlap: 100},
-		Crawl:    CrawlConfig{MaxPages: 1000, MaxDepth: 3, Workers: 2, StateDB: "rove.db"},
+		Crawl:    CrawlConfig{MaxPages: 1000, MaxDepth: 3, Workers: 2, StateDB: "rove.db", Delay: Duration{Duration: 500 * time.Millisecond}},
 		ES:       ESConfig{URL: "http://localhost:9200"},
 		Robots:   RobotsConfig{Enabled: true},
 		Embedder: EmbedderConfig{Type: "pseudo"},
@@ -159,6 +160,7 @@ func applyEnv(c *Config) {
 	applyInt(&c.Crawl.MaxDepth, "ROVE_CRAWL_MAX_DEPTH")
 	applyInt(&c.Crawl.Workers, "ROVE_CRAWL_WORKERS")
 	applyString(&c.Crawl.StateDB, "ROVE_CRAWL_STATE_DB")
+	applyDuration(&c.Crawl.Delay.Duration, "ROVE_CRAWL_DELAY")
 	applyInt(&c.Search.TopK, "ROVE_SEARCH_TOP_K")
 	applyInt(&c.Index.EmbeddingDim, "ROVE_INDEX_EMBEDDING_DIM")
 	applyString(&c.Index.Prefix, "ROVE_INDEX_PREFIX")
@@ -200,6 +202,16 @@ func applyString(target *string, key string) {
 	}
 }
 
+// applyDuration 应用时长环境变量（如 "500ms"、"2s"），解析失败保持默认值。
+func applyDuration(target *time.Duration, key string) {
+
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			*target = parsed
+		}
+	}
+}
+
 // validate 校验关键配置项，违规返回 config.invalid。
 func validate(c *Config) error {
 
@@ -226,6 +238,9 @@ func validate(c *Config) error {
 	}
 	if c.Crawl.Workers <= 0 {
 		return rove.NewError("config.invalid", rove.CategoryContent, false, "crawl.workers must be > 0")
+	}
+	if c.Crawl.Delay.Duration < 0 {
+		return rove.NewError("config.invalid", rove.CategoryContent, false, "crawl.delay must be >= 0")
 	}
 	if c.Search.TopK <= 0 {
 		return rove.NewError("config.invalid", rove.CategoryContent, false, "search.top_k must be > 0")

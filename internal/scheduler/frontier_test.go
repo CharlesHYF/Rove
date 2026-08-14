@@ -70,14 +70,15 @@ type frontierRow struct {
 	state       string
 	nextFetchAt string
 	priority    int
+	retryCount  int
 }
 
 // readFrontierRow 读取单条 frontier 记录，便于断言状态流转细节。
 func readFrontierRow(t *testing.T, frontier *Frontier, normalizedURL string) frontierRow {
 
 	var row frontierRow
-	err := frontier.DB.QueryRow(`SELECT state, next_fetch_at, priority FROM frontier WHERE normalized_url = ?`, normalizedURL).
-		Scan(&row.state, &row.nextFetchAt, &row.priority)
+	err := frontier.DB.QueryRow(`SELECT state, next_fetch_at, priority, retry_count FROM frontier WHERE normalized_url = ?`, normalizedURL).
+		Scan(&row.state, &row.nextFetchAt, &row.priority, &row.retryCount)
 	require.NoError(t, err)
 	return row
 }
@@ -124,6 +125,25 @@ func TestFrontierRequeueFailedSeed(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, added, "failed 状态须重新入队")
 	require.Equal(t, "queued", readFrontierRow(t, frontier, url).state)
+}
+
+// TestFrontierRequeueResetsRetryCount 回归：重入队须把 retry_count 重置为 0，避免重试预算耗尽后永远无法重抓。
+func TestFrontierRequeueResetsRetryCount(t *testing.T) {
+
+	frontier, _ := NewFrontier(":memory:")
+	defer frontier.Close()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	url := "https://a.com/3"
+	_, _ = frontier.Enqueue(ctx, []FrontierEntry{enqueueEntry(url, now)})
+	require.NoError(t, frontier.UpdateState(ctx, url, "failed", 6, now))
+
+	added, err := frontier.Enqueue(ctx, []FrontierEntry{enqueueEntry(url, now)})
+	require.NoError(t, err)
+	require.Equal(t, 1, added)
+	row := readFrontierRow(t, frontier, url)
+	require.Equal(t, "queued", row.state)
+	require.Equal(t, 0, row.retryCount, "重入队必须重置重试计数，否则耗尽预算的条目会立即再次失败")
 }
 
 // TestFrontierEnqueueSkipsInFlight 回归：queued/fetching 状态不重置，避免重复抓取。

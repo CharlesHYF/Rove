@@ -53,6 +53,7 @@ func (s *CrawlerService) Crawl(ctx context.Context, seed string, maxPages, maxDe
 	sched := scheduler.NewScheduler(frontier, scheduler.Options{
 		HostConcurrency: 1,
 		MaxRetries:      5,
+		CrawlDelay:      s.cfg.Crawl.Delay.Duration,
 	})
 	fetcher := fetch.NewHTTP(fetch.Options{AllowPrivate: s.cfg.Fetch.AllowPrivate})
 	registry := content.DefaultRegistry()
