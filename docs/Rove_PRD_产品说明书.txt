@@ -1,6 +1,6 @@
 ROVE
 PRD 产品说明书
-Rove — Product Requirements Document
+Rove -- Product Requirements Document
 Open web infrastructure for AI agents.
 Crawl. Browse. Index. Retrieve. Rank. Evidence.
 文档信息

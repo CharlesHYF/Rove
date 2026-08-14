@@ -1,6 +1,6 @@
 ROVE
 产品介绍册
-Rove — Open Web Infrastructure for AI Agents
+Rove -- Open Web Infrastructure for AI Agents
 Open web infrastructure for AI agents.
 Crawl. Browse. Index. Retrieve. Rank. Evidence.
 文档信息
@@ -24,7 +24,7 @@ Self-owned Retrieval · HTTP First · Deterministic First · Agent-first
 07 开发者体验
 08 产品边界与长期价值
 01 为什么需要 Rove
-AI Agent 已经越来越擅长推理、规划与行动，但“访问 Web”仍然依赖大量碎片化基础设施。一个真正可用的 Agent 往往要同时拼接 Search API、Crawler、HTTP Fetcher、Browser Automation、HTML Extractor、Search Index、Vector Retrieval、Reranker、Citation、Cache 与 Observability。
+AI Agent 已经越来越擅长推理、规划与行动，但"访问 Web"仍然依赖大量碎片化基础设施。一个真正可用的 Agent 往往要同时拼接 Search API、Crawler、HTTP Fetcher、Browser Automation、HTML Extractor、Search Index、Vector Retrieval、Reranker、Citation、Cache 与 Observability。
 核心问题
 Agent 团队真正浪费的时间，不是某一个组件不会做，而是每个团队都在重复编写 fetch → extract → browser fallback → chunk → index → retrieve → rerank 的 glue code。
 Agent
@@ -166,7 +166,7 @@ Agent-friendly Runtime 与可观察性
 Public Web + Private Corpus 的统一检索模型
 替 Agent 做业务层推理与 Research Workflow
 长期价值
-Rove 真正要定义的不是“另一个 Crawler”或“另一个 Browser Agent”，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.
+Rove 真正要定义的不是"另一个 Crawler"或"另一个 Browser Agent"，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.
 
 ===== 表格内容 =====
 产品名称 | Rove
@@ -199,4 +199,4 @@ Web acquisition / browser / content / index / retrieval / evidence | SaaS Dashbo
 完整自托管 Search Infrastructure | 依赖第三方 Search API 才能工作
 Agent-friendly Runtime 与可观察性 | 通用 Agent Framework / Chatbot
 Public Web + Private Corpus 的统一检索模型 | 替 Agent 做业务层推理与 Research Workflow
-长期价值 Rove 真正要定义的不是“另一个 Crawler”或“另一个 Browser Agent”，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.
+长期价值 Rove 真正要定义的不是"另一个 Crawler"或"另一个 Browser Agent"，而是 Agent 与 Web 之间的一层标准基础设施：Agent thinks. Rove reaches the Web.

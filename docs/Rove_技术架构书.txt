@@ -1,6 +1,6 @@
 ROVE
 技术架构书
-Rove — Technical Architecture Specification
+Rove -- Technical Architecture Specification
 Open web infrastructure for AI agents.
 Crawl. Browse. Index. Retrieve. Rank. Evidence.
 文档信息
