@@ -6,7 +6,7 @@
 ## 0. 交付红线（必须满足，否则不算完成）
 - 交付前必须跑 `make verify`（先规范校验 `scripts/check.sh`，再跑测试 `scripts/test.sh`），**全绿才算完成**。
 - 测试必须实跑并全部通过，禁止"看起来对"就交付。
-- 代码提交到 `agents/feature/<描述>` 分支，禁止直接推 `main` 或发起 PR，禁止任何 AI 联合署名；author/committer 必须为 `Charles <w1400214654@outlook.com>`。
+- **分支策略：仓库唯一分支是 `main`**。代码直接提交并推送到 `main`；禁止创建或推送 `agents/feature/*` 等辅助分支、禁止发起 PR；push 后 CI（verify 工作流）必须全绿；禁止任何 AI 联合署名；author/committer 必须为 `Charles <w1400214654@outlook.com>`。
 - **证据驱动**：凡事实或技术判断，先查实相关源码/文档/命令输出再作答，结论必须附依据（文件:行号、实跑输出）；不确定就明说、点出缺口，绝不编造。
 
 ## 1. 命名硬约束
