@@ -1,18 +1,17 @@
 /*
- * 文件作用：rove browse 子命令与浏览器管理器装配 -- 输出 Page State（PRD FR-BRW-002）。
+ * 文件作用：rove browse 子命令 -- 调用 BrowserService 输出页面状态（PRD FR-BRW-002）。
  * 创建日期：2026-08-12
- * 修改日期：2026-08-12
+ * 修改日期：2026-08-15
  */
 package main
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"rove/internal/app"
 	"rove/internal/config"
-	"rove/pkg/browser"
 )
 
 var browseFlags struct {
@@ -33,20 +32,14 @@ func init() {
 	browseCmd.Flags().BoolVar(&browseFlags.json, "json", false, "以 JSON 输出 Page State")
 }
 
-// runBrowse 渲染页面并输出状态。
+// runBrowse 调用 BrowserService 渲染页面并输出状态。
 func runBrowse(cmd *cobra.Command, args []string) error {
 
 	cfg, err := config.Load("")
 	if err != nil {
 		return err
 	}
-	manager, err := newBrowserManager(cfg)
-	if err != nil {
-		return err
-	}
-	defer manager.Close()
-
-	state, err := manager.Browse(cmd.Context(), args[0])
+	state, err := app.NewBrowser(cfg).Browse(cmd.Context(), args[0])
 	if err != nil {
 		return err
 	}
@@ -65,16 +58,4 @@ func runBrowse(cmd *cobra.Command, args []string) error {
 		cmd.Printf("  [%s] %s %q\n", element.ID, element.Tag, element.Text)
 	}
 	return nil
-}
-
-// newBrowserManager 按配置构造浏览器管理器（禁用或不可用时返回错误）。
-func newBrowserManager(cfg *config.Config) (*browser.Manager, error) {
-
-	if !cfg.Browser.Enabled {
-		return nil, fmt.Errorf("browser disabled by config")
-	}
-	return browser.NewManager(browser.Options{
-		ExecutablePath: cfg.Browser.ExecutablePath,
-		Timeout:        cfg.Browser.Timeout.Duration,
-	})
 }

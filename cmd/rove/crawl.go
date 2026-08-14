@@ -1,21 +1,15 @@
 /*
- * 文件作用：rove crawl 子命令 -- seed -> frontier -> scheduler -> fetch -> pipeline -> index（验收 A1）。
+ * 文件作用：rove crawl 子命令 -- 调用 CrawlerService 执行 seed 抓取与索引（验收 A1）。
  * 创建日期：2026-08-12
- * 修改日期：2026-08-12
+ * 修改日期：2026-08-15
  */
 package main
 
 import (
 	"github.com/spf13/cobra"
 
+	"rove/internal/app"
 	"rove/internal/config"
-	"rove/internal/scheduler"
-	"rove/pkg/content"
-	"rove/pkg/crawler"
-	"rove/pkg/elastic"
-	"rove/pkg/fetch"
-	"rove/pkg/index"
-	"rove/pkg/retrieval"
 )
 
 var crawlFlags struct {
@@ -42,59 +36,14 @@ func init() {
 	crawlCmd.Flags().StringVar(&crawlFlags.db, "db", "", "frontier SQLite 路径（默认配置 crawl.state_db）")
 }
 
-// runCrawl 执行一轮抓取。
+// runCrawl 调用 CrawlerService 执行一轮抓取。
 func runCrawl(cmd *cobra.Command, args []string) error {
 
 	cfg, err := config.Load("")
 	if err != nil {
 		return err
 	}
-	client, err := elastic.New(cfg.ES.URL, cfg.ES.Username, cfg.ES.Password, cfg.Index.Prefix)
-	if err != nil {
-		return err
-	}
-	ctx := cmd.Context()
-	if err := client.EnsureIndexes(ctx, cfg.Index.EmbeddingDim); err != nil {
-		return err
-	}
-
-	dbPath := crawlFlags.db
-	if dbPath == "" {
-		dbPath = cfg.Crawl.StateDB
-	}
-	frontier, err := scheduler.NewFrontier(dbPath)
-	if err != nil {
-		return err
-	}
-	defer frontier.Close()
-
-	sched := scheduler.NewScheduler(frontier, scheduler.Options{
-		HostConcurrency: 1,
-		MaxRetries:      5,
-	})
-	fetcher := fetch.NewHTTP(fetch.Options{AllowPrivate: cfg.Fetch.AllowPrivate})
-	registry := content.DefaultRegistry()
-	pipeline := content.NewPipeline(registry, &content.Canonicalizer{}, content.NewDeduper(), content.NewChunker(cfg.Chunk.MaxTokens, cfg.Chunk.Overlap))
-	indexer := index.New(client, retrieval.NewPseudoEmbedder(cfg.Index.EmbeddingDim))
-
-	workers := crawlFlags.workers
-	if workers <= 0 {
-		workers = cfg.Crawl.Workers
-	}
-	maxPages := crawlFlags.maxPages
-	if maxPages <= 0 {
-		maxPages = cfg.Crawl.MaxPages
-	}
-	maxDepth := crawlFlags.maxDepth
-	if maxDepth <= 0 {
-		maxDepth = cfg.Crawl.MaxDepth
-	}
-
-	c := crawler.New(frontier, sched, crawler.NewRobotsClient(fetcher), crawler.Policy{
-		MaxDepth: maxDepth, DomainAllowlist: cfg.Crawl.DomainAllowlist, SameHostOnly: true,
-	}, fetcher, registry, pipeline, indexer, workers, maxPages)
-
-	stats, err := c.Run(ctx, []string{args[0]})
+	stats, err := app.NewCrawler(cfg).Crawl(cmd.Context(), args[0], crawlFlags.maxPages, crawlFlags.maxDepth, crawlFlags.workers, crawlFlags.db)
 	if err != nil {
 		return err
 	}
