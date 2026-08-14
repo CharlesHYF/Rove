@@ -80,10 +80,10 @@ func (c *Client) createPhysical(ctx context.Context, physical string, mapping ma
 	return nil
 }
 
-// Reindex 将 source 物理索引全量复制到 dest（refresh 后可见）。
+// Reindex 将 source 物理索引全量复制到 dest（完成后显式 refresh，保证计数立即可见）。
 func (c *Client) Reindex(ctx context.Context, source, dest string) error {
 
-	body := fmt.Sprintf(`{"source":{"index":%q},"dest":{"index":%q},"refresh":true}`, source, dest)
+	body := fmt.Sprintf(`{"source":{"index":%q},"dest":{"index":%q}}`, source, dest)
 	resp, err := c.es.Reindex(strings.NewReader(body), c.es.Reindex.WithContext(ctx), c.es.Reindex.WithWaitForCompletion(true))
 	if err != nil {
 		return rove.NewError("es.reindex", rove.CategoryIndex, true, "reindex %s -> %s: %v", source, dest, err)
@@ -91,6 +91,14 @@ func (c *Client) Reindex(ctx context.Context, source, dest string) error {
 	defer resp.Body.Close()
 	if resp.IsError() {
 		return rove.NewError("es.reindex", rove.CategoryIndex, true, "reindex %s -> %s status: %s: %s", source, dest, resp.Status(), readErrorBody(resp))
+	}
+	refreshResp, refreshErr := c.es.Indices.Refresh(c.es.Indices.Refresh.WithContext(ctx), c.es.Indices.Refresh.WithIndex(dest))
+	if refreshErr != nil {
+		return rove.NewError("es.reindex", rove.CategoryIndex, true, "refresh %s: %v", dest, refreshErr)
+	}
+	defer refreshResp.Body.Close()
+	if refreshResp.IsError() {
+		return rove.NewError("es.reindex", rove.CategoryIndex, true, "refresh %s status: %s", dest, refreshResp.Status())
 	}
 	return nil
 }

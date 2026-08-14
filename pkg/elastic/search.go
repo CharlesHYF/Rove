@@ -43,17 +43,21 @@ func (c *Client) SearchChunks(ctx context.Context, alias string, body []byte) ([
 	return decodeChunkHits(resp.Body)
 }
 
-// SearchChunksKNN 在 chunk 索引上执行 kNN 向量检索（dense_vector index:true + knn query）。
-func (c *Client) SearchChunksKNN(ctx context.Context, alias string, queryVector []float32, k, numCandidates int) ([]ChunkHit, error) {
+// SearchChunksKNN 在 chunk 索引上执行 kNN 向量检索（dense_vector index:true + knn query，可选 filter 与 BM25 腿一致）。
+func (c *Client) SearchChunksKNN(ctx context.Context, alias string, queryVector []float32, k, numCandidates int, filters []any) ([]ChunkHit, error) {
 
+	knn := map[string]any{
+		"field":          "embedding",
+		"query_vector":   queryVector,
+		"k":              k,
+		"num_candidates": numCandidates,
+	}
+	if len(filters) > 0 {
+		knn["filter"] = map[string]any{"bool": map[string]any{"filter": filters}}
+	}
 	body := map[string]any{
 		"size": k,
-		"knn": map[string]any{
-			"field":          "embedding",
-			"query_vector":   queryVector,
-			"k":              k,
-			"num_candidates": numCandidates,
-		},
+		"knn":  knn,
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {

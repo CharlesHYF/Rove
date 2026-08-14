@@ -114,7 +114,7 @@ func (r *Retriever) Search(ctx context.Context, q *Query) (*SearchResult, error)
 		if err != nil {
 			return nil, err
 		}
-		knnHits, err := r.es.SearchChunksKNN(ctx, r.es.ChunksAlias(), vectors[0], candidateSize, topK*10)
+		knnHits, err := r.es.SearchChunksKNN(ctx, r.es.ChunksAlias(), vectors[0], candidateSize, topK*10, buildFilters(effectiveQuery.Filters))
 		if err != nil {
 			return nil, err
 		}

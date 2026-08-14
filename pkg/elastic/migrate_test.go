@@ -8,6 +8,7 @@ package elastic
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func esURL() string {
 // TestPhysicalIndexLifecycle 集成验证：创建物理索引 -> reindex -> alias 切换 -> 删除（ES 不可达跳过）。
 func TestPhysicalIndexLifecycle(t *testing.T) {
 
-	prefix := "rove-migrate-elastic-" + t.Name()
+	prefix := "rove-migrate-elastic-" + strings.ToLower(t.Name())
 	client, err := New(esURL(), "", "", prefix)
 	require.NoError(t, err)
 	ctx := context.Background()

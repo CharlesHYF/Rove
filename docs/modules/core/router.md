@@ -6,7 +6,7 @@
 
 ## Query Router
 ### 功能描述
-查询垂类路由：`rove search --vertical auto|web|docs|code|academic`（默认 auto）。auto 模式用确定性规则（代码标记 -> 学术标记 -> 文档标记 -> 默认 web，均无 LLM）推断垂类并在结果中回显。检索落点：chunks 索引新增 `source_type` keyword 字段；仅 docs/code/academic 垂类应用 source_type 过滤，web 为免过滤兜底（与历史行为一致）。搜索体沿用现有 buildFilters（BM25 腿），KNN 腿当前不支持过滤（与 domain/language 过滤的既有语义一致）。
+查询垂类路由：`rove search --vertical auto|web|docs|code|academic`（默认 auto）。auto 模式用确定性规则（代码标记 -> 学术标记 -> 文档标记 -> 默认 web，均无 LLM）推断垂类并在结果中回显。检索落点：chunks 索引新增 `source_type` keyword 字段；仅 docs/code/academic 垂类应用 source_type 过滤，web 为免过滤兜底（与历史行为一致）。过滤同时作用于 BM25 腿与向量 KNN 腿（knn.filter），两条腿语义一致。
 
 ### 接口信息
 | 函数 | 签名 | 说明 |
