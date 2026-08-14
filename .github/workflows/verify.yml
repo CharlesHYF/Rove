@@ -1,11 +1,12 @@
-# 文件作用：CI 交付闸门 -- push 到 agents/feature/** 或 PR 到 main 时,云端强制 make verify 并扫描提交信息,不依赖本地自觉。
+# 文件作用：CI 交付闸门 -- push 到 main 或 agents/feature/**、PR 到 main 时,云端强制 make verify 并扫描提交信息,不依赖本地自觉。
 # 创建日期：2026-08-12
-# 修改日期：2026-08-12
+# 修改日期：2026-08-15
 name: verify
 
 on:
   push:
     branches:
+      - main
       - "agents/feature/**"
   pull_request:
     branches:
